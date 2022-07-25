@@ -1,0 +1,28 @@
+# Eclipse Public License - v 2.0
+#
+#     THE ACCOMPANYING PROGRAM IS PROVIDED UNDER THE TERMS OF THIS ECLIPSE
+#     PUBLIC LICENSE ("AGREEMENT"). ANY USE, REPRODUCTION OR DISTRIBUTION
+#     OF THE PROGRAM CONSTITUTES RECIPIENT'S ACCEPTANCE OF THIS AGREEMENT.
+
+[package]
+name = "pgopr"
+version = "0.1.0"
+authors = ["Jesper Pedersen <jesper.pedersen@redhat.com>"]
+edition = "2021"
+license = "Eclipse Public License 2.0"
+description = "PostgreSQL operator for Kubernetes"
+
+[dependencies]
+tokio = { version = "1", features = ["full"] }
+kube = { version = "0.74.0", default-features = true, features = ["client", "derive", "runtime"] }
+k8s-openapi = { version = "0.15.0", default-features = false, features = ["api", "v1_24"] }
+futures = { version = "0.3" }
+serde = { version = "1.0" }
+serde_json = { version = "1.0" }
+serde_yaml = { version = "0.8" }
+schemars = { version = "0.8" }
+thiserror = { version = "1.0" }
+clap = { version = "3.1", default-features = false, features = ["std", "cargo"] }
+clap_complete = { version = "3.1" }
+log = { version = "0.4", features = ["max_level_trace", "release_max_level_trace"] }
+log4rs = { version = "1.1" }
