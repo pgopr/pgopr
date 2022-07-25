@@ -4,7 +4,7 @@ First of all, make sure that `pgopr` is installed and in your path by
 using `pgopr -h`. You should see
 
 ```
-pgopr 0.1.0
+pgopr 0.2.0
 PostgreSQL operator for Kubernetes
 
 USAGE:

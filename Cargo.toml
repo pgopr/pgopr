@@ -6,7 +6,7 @@
 
 [package]
 name = "pgopr"
-version = "0.1.0"
+version = "0.2.0"
 authors = ["Jesper Pedersen <jesper.pedersen@redhat.com>"]
 edition = "2021"
 license = "Eclipse Public License 2.0"
