@@ -4,12 +4,14 @@
 
 ## Features
 
-* PostgreSQL 14 primary instance
+* PostgreSQL 13 primary instance
+* Command line interface
+* CustomResourceDefinition interface
 * Shell completion
 
 ## Requirements
 
-* [Kubernetes](https://kubernetes.io/) 1.23+
+* [Kubernetes](https://kubernetes.io/) 1.24+
 
 ## Technologies
 
@@ -39,6 +41,7 @@ cd target/debug
 kind create cluster
 ./pgopr install
 ./pgopr provision primary
+kubectl port-forward postgresql-XYZ 5432:5432
 psql -h localhost -p 5432 -U myuser --password mydb
 ./pgopr retire primary
 ./pgopr uninstall
