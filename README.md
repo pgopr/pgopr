@@ -1,6 +1,6 @@
 # pgopr: PostgreSQL operator for Kubernetes
 
-`pgopr` is an operator that controls a PostgreSQL cluster and related technologies using Kubernetes 1.23+.
+`pgopr` is an operator that controls a PostgreSQL cluster and related technologies using [Kubernetes](https://kubernetes.io/) 1.24+.
 
 ## Features
 
