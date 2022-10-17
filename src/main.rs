@@ -5,7 +5,7 @@
  *   PUBLIC LICENSE ("AGREEMENT"). ANY USE, REPRODUCTION OR DISTRIBUTION
  *   OF THE PROGRAM CONSTITUTES RECIPIENT'S ACCEPTANCE OF THIS AGREEMENT.
  */
-use clap::{crate_description, crate_name, crate_version, Arg, Command};
+use clap::{crate_description, crate_name, crate_version, value_parser, Arg, Command};
 use clap_complete::{generate, Generator, Shell};
 use futures::stream::StreamExt;
 use kube::{
@@ -124,7 +124,7 @@ fn cli() -> Command<'static> {
                         .short('t')
                         .long("type")
                         .required(true)
-                        .possible_values(Shell::possible_values())
+                        .value_parser(value_parser!(Shell))
                         .help("Generate a shell completion file"),
                 ),
         )
@@ -368,7 +368,7 @@ fn determine_action(pgopr: &pgopr) -> PgOprAction {
 /// # Arguments
 /// - `error`: The error
 /// - `_context`: Unused argument
-fn on_error(error: &Error, _context: Arc<ContextData>) -> Action {
+fn on_error(_obj: Arc<pgopr>, error: &Error, _context: Arc<ContextData>) -> Action {
     eprintln!("Reconciliation error:\n{:?}", error);
     Action::requeue(Duration::from_secs(5))
 }

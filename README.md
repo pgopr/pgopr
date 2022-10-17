@@ -11,7 +11,7 @@
 
 ## Requirements
 
-* [Kubernetes](https://kubernetes.io/) 1.24+
+* [Kubernetes](https://kubernetes.io/) 1.25+
 
 ## Technologies
 
@@ -22,8 +22,8 @@
 
 ## Runtime platforms
 
-* [kind](https://kind.sigs.k8s.io/) 0.14+ ([Guide](https://github.com/pgopr/pgopr-k8s/tree/main/providers/kind))
-* [minikube](https://minikube.sigs.k8s.io/docs/) 1.26+ ([Guide](https://github.com/pgopr/pgopr-k8s/tree/main/providers/minikube/))
+* [kind](https://kind.sigs.k8s.io/) 0.16+ ([Guide](https://github.com/pgopr/pgopr-k8s/tree/main/providers/kind))
+* [minikube](https://minikube.sigs.k8s.io/docs/) 1.27+ ([Guide](https://github.com/pgopr/pgopr-k8s/tree/main/providers/minikube/))
 
 ## Developer
 
