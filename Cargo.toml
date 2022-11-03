@@ -14,7 +14,7 @@ description = "PostgreSQL operator for Kubernetes"
 
 [dependencies]
 tokio = { version = "1", features = ["full"] }
-kube = { version = "0.75.0", default-features = true, features = ["client", "derive", "runtime"] }
+kube = { version = "0.76.0", default-features = true, features = ["client", "derive", "runtime"] }
 k8s-openapi = { version = "0.16.0", default-features = false, features = ["api", "v1_25"] }
 futures = { version = "0.3" }
 serde = { version = "1.0" }
