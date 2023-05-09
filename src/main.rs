@@ -9,9 +9,9 @@ use clap::{crate_description, crate_name, crate_version, value_parser, Arg, Comm
 use clap_complete::{generate, Generator, Shell};
 use futures::stream::StreamExt;
 use kube::{
-    api::{Api, ListParams},
+    api::{Api},
     client::Client,
-    runtime::{controller::Action, Controller},
+    runtime::{controller::Action, Controller, watcher},
     Resource, ResourceExt,
 };
 use log::{debug, error, info, LevelFilter};
@@ -280,7 +280,7 @@ async fn main() {
             let context: Arc<ContextData> = Arc::new(ContextData::new(client.clone()));
 
             // Start the controller
-            Controller::new(crd_api.clone(), ListParams::default())
+            Controller::new(crd_api.clone(), watcher::Config::default())
                 .run(reconcile, on_error, context)
                 .for_each(|reconciliation_result| async move {
                     match reconciliation_result {
