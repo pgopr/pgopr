@@ -1,6 +1,6 @@
 # pgopr: PostgreSQL operator for Kubernetes
 
-`pgopr` is an operator that controls a PostgreSQL cluster and related technologies using [Kubernetes](https://kubernetes.io/) 1.24+.
+`pgopr` is an operator that controls a PostgreSQL cluster and related technologies using [Kubernetes](https://kubernetes.io/) 1.28+.
 
 ## Features
 
@@ -11,7 +11,7 @@
 
 ## Requirements
 
-* [Kubernetes](https://kubernetes.io/) 1.25+
+* [Kubernetes](https://kubernetes.io/) 1.28+
 
 ## Technologies
 
@@ -22,7 +22,7 @@
 
 ## Runtime platforms
 
-* [kind](https://kind.sigs.k8s.io/) 0.17+ ([Guide](https://github.com/pgopr/pgopr-k8s/tree/main/providers/kind))
+* [kind](https://kind.sigs.k8s.io/) 0.22+ ([Guide](https://github.com/pgopr/pgopr-k8s/tree/main/providers/kind))
 
 ## Developer
 
