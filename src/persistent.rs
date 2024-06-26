@@ -8,7 +8,7 @@
 use k8s_openapi::{
     api::core::v1::{
         HostPathVolumeSource, PersistentVolume, PersistentVolumeClaim, PersistentVolumeClaimSpec,
-        PersistentVolumeSpec, ResourceRequirements,
+        PersistentVolumeSpec, VolumeResourceRequirements,
     },
     apimachinery::pkg::api::resource::Quantity,
 };
@@ -192,9 +192,9 @@ fn pvc_create(name: &str, namespace: &str, storage: u32) -> PersistentVolumeClai
         spec: Some(PersistentVolumeClaimSpec {
             storage_class_name: Some("manual".to_owned()),
             access_modes: Some(vec!["ReadWriteMany".to_owned()]),
-            resources: Some(ResourceRequirements {
+            resources: Some(VolumeResourceRequirements {
                 requests: Some(cap.clone()),
-                ..ResourceRequirements::default()
+                ..VolumeResourceRequirements::default()
             }),
             ..PersistentVolumeClaimSpec::default()
         }),
