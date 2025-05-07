@@ -9,9 +9,9 @@ use clap::{crate_description, crate_name, crate_version, value_parser, Arg, Comm
 use clap_complete::{generate, Generator, Shell};
 use futures::stream::StreamExt;
 use kube::{
-    api::{Api},
+    api::Api,
     client::Client,
-    runtime::{controller::Action, Controller, watcher},
+    runtime::{controller::Action, watcher, Controller},
     Resource, ResourceExt,
 };
 use log::{debug, error, info, LevelFilter};
@@ -62,19 +62,14 @@ fn init_log() {
     let console = ConsoleAppender::builder().target(Target::Stdout).build();
     let config = Config::builder()
         .appender(Appender::builder().build("console", Box::new(console)))
-        .logger(Logger::builder()
-                .build("pgopr", LevelFilter::Info))
-        .build(
-            Root::builder()
-                .appender("console")
-                .build(LevelFilter::Info),
-        )
+        .logger(Logger::builder().build("pgopr", LevelFilter::Info))
+        .build(Root::builder().appender("console").build(LevelFilter::Info))
         .unwrap();
     let _handle = log4rs::init_config(config).unwrap();
 }
 
 /// Parse main arguments into a Command instance
-fn cli() -> Command<'static> {
+fn cli() -> Command {
     Command::new(crate_name!())
         .about(crate_description!())
         .version(crate_version!())
@@ -137,7 +132,7 @@ fn cli() -> Command<'static> {
                         .short('t')
                         .long("type")
                         .required(true)
-                        .possible_values(vec!["crd", "service", "persistent", "primary"])
+                        .value_parser(vec!["crd", "service", "persistent", "primary"])
                         .help("Generate YAML resources"),
                 ),
         )
@@ -162,13 +157,13 @@ async fn main() {
 
     match clicmd.subcommand() {
         Some(("completion", sub_matches)) => {
-            if let Ok(generator) = sub_matches.value_of_t::<Shell>("type") {
+            if let Some(generator) = sub_matches.get_one::<Shell>("type") {
                 let mut cli = cli();
-                generate_completions(generator, &mut cli);
+                generate_completions(generator.clone(), &mut cli);
             }
         }
 
-        Some(("generate", sub_matches)) => match sub_matches.value_of("type").unwrap() {
+        Some(("generate", sub_matches)) => match *sub_matches.get_one("type").unwrap() {
             "crd" => {
                 crd::crd_generate();
             }
@@ -212,20 +207,23 @@ async fn main() {
                     let _pv = persistent::persistent_volume_deploy(
                         client.clone(),
                         "postgresql-pv-volume",
-                        5u32
-                    ).await;
+                        5u32,
+                    )
+                    .await;
 
                     let _pvc = persistent::persistent_volume_claim_deploy(
                         client.clone(),
                         "postgresql-pv-claim",
                         &namespace,
                         5u32,
-                    ).await;
+                    )
+                    .await;
 
                     let _d =
                         primary::primary_deploy(client.clone(), "postgresql", &namespace).await;
 
-                    let _s = services::service_deploy(client.clone(), "postgresql", &namespace).await;
+                    let _s =
+                        services::service_deploy(client.clone(), "postgresql", &namespace).await;
                 }
 
                 (name, _) => {
@@ -245,17 +243,21 @@ async fn main() {
                     let client: Client = k8s::k8s_client().await;
                     let namespace = "default".to_owned();
 
-                    let _s = services::service_undeploy(client.clone(), "postgresql", &namespace).await;
-                    let _d = primary::primary_undeploy(client.clone(), "postgresql", &namespace).await;
+                    let _s =
+                        services::service_undeploy(client.clone(), "postgresql", &namespace).await;
+                    let _d =
+                        primary::primary_undeploy(client.clone(), "postgresql", &namespace).await;
                     let _pvc = persistent::persistent_volume_claim_undeploy(
                         client.clone(),
                         "postgresql-pv-claim",
                         &namespace,
-                    ).await;
+                    )
+                    .await;
                     let _pv = persistent::persistent_volume_undeploy(
                         client.clone(),
-                        "postgresql-pv-volume"
-                    ).await;
+                        "postgresql-pv-volume",
+                    )
+                    .await;
                 }
                 (name, _) => {
                     unreachable!("Unsupported subcommand `{}`", name)
@@ -322,12 +324,7 @@ async fn reconcile(pgopr: Arc<pgopr>, context: Arc<ContextData>) -> Result<Actio
             let name = pgopr.name_any();
 
             finalizer::add(client.clone(), &name, &namespace).await?;
-            primary::primary_deploy(
-                client,
-                &pgopr.name_any(),
-                &namespace,
-            )
-            .await?;
+            primary::primary_deploy(client, &pgopr.name_any(), &namespace).await?;
 
             Ok(Action::requeue(Duration::from_secs(10)))
         }
