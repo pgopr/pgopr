@@ -16,8 +16,8 @@ description = "PostgreSQL operator for Kubernetes"
 tokio = { version = "1", features = ["full"] }
 kube = { version = "0.92.1", default-features = true, features = ["client", "derive", "runtime"] }
 k8s-openapi = { version = "0.22.0", default-features = true, features = ["v1_30"] }
-clap = { version = "3.2", default-features = false, features = ["std", "cargo"] }
-clap_complete = { version = "3.2" }
+clap = { version = "4.5.37", default-features = false, features = ["std", "cargo"] }
+clap_complete = { version = "4.5.50" }
 directories = { version = "4" }
 figment = { version = "0.10", features = ["env", "toml"] }
 futures = { version = "0.3" }
