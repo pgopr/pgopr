@@ -18,7 +18,7 @@ kube = { version = "0.92.1", default-features = true, features = ["client", "der
 k8s-openapi = { version = "0.22.0", default-features = true, features = ["v1_30"] }
 clap = { version = "4.5.37", default-features = false, features = ["std", "cargo"] }
 clap_complete = { version = "4.5.50" }
-directories = { version = "4" }
+directories = { version = "6.0" }
 figment = { version = "0.10", features = ["env", "toml"] }
 futures = { version = "0.3" }
 log = { version = "0.4", features = ["max_level_trace", "release_max_level_trace"] }
@@ -28,5 +28,5 @@ serde = { version = "1.0" }
 serde_derive = { version = "1.0" }
 serde_json = { version = "1.0" }
 serde_yaml = { version = "0.9" }
-thiserror = { version = "1.0" }
-toml = { version = "0.5" }
+thiserror = { version = "2.0" }
+toml = { version = "0.8" }
