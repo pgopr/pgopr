@@ -267,6 +267,7 @@ Remember to add your name to the following files,
 
 ```
 AUTHORS
+Cargo.toml
 ```
 
 in your first pull request
