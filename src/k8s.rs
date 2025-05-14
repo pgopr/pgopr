@@ -7,11 +7,12 @@
  */
 
 use kube::client::Client;
+use log::error;
+use std::process;
 
 pub async fn k8s_client() -> Client {
-    let kubernetes_client: Client = Client::try_default()
-        .await
-        .expect("Expected a valid KUBECONFIG environment variable.");
-
-    kubernetes_client
+    Client::try_default().await.unwrap_or_else(|_| {
+        error!("Fatal error: Expected a valid KUBECONFIG environment variable.");
+        process::exit(1);
+    })
 }
