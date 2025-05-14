@@ -12,11 +12,11 @@ use k8s_openapi::{
     },
     apimachinery::pkg::api::resource::Quantity,
 };
-use log::{info, trace};
 use kube::{
-    api::{DeleteParams, ObjectMeta, PostParams},
     Api, Client, Error,
+    api::{DeleteParams, ObjectMeta, PostParams},
 };
+use log::{info, trace};
 use std::collections::BTreeMap;
 use std::fs;
 
@@ -56,10 +56,7 @@ pub async fn persistent_volume_deploy(
 /// - `name` - The name of the persistent volume
 ///
 /// Note: It is assumed the persistence volume exists for simplicity. Otherwise returns an Error.
-pub async fn persistent_volume_undeploy(
-    client: Client,
-    name: &str,
-) -> Result<(), Error> {
+pub async fn persistent_volume_undeploy(client: Client, name: &str) -> Result<(), Error> {
     let api: Api<PersistentVolume> = Api::all(client);
     match api.delete(name, &DeleteParams::default()).await {
         Ok(_) => {
@@ -142,7 +139,7 @@ fn pv_create(name: &str, storage: u32) -> PersistentVolume {
     labels.insert("app".to_owned(), "postgresql".to_owned());
     labels.insert("type".to_owned(), "local".to_owned());
 
-    let mut size : String = storage.to_string().to_owned();
+    let mut size: String = storage.to_string().to_owned();
     size.push_str(&"Gi".to_owned());
 
     let mut cap: BTreeMap<String, Quantity> = BTreeMap::new();
@@ -175,7 +172,7 @@ fn pvc_create(name: &str, namespace: &str, storage: u32) -> PersistentVolumeClai
     let mut labels: BTreeMap<String, String> = BTreeMap::new();
     labels.insert("app".to_owned(), "postgresql".to_owned());
 
-    let mut size : String = storage.to_string().to_owned();
+    let mut size: String = storage.to_string().to_owned();
     size.push_str(&"Gi".to_owned());
 
     let mut cap: BTreeMap<String, Quantity> = BTreeMap::new();

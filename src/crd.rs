@@ -8,10 +8,10 @@
 use k8s_openapi::apiextensions_apiserver::pkg::apis::apiextensions::v1::CustomResourceDefinition;
 use kube::CustomResource;
 use kube::{
+    Api, Client, Error,
     api::{DeleteParams, PostParams},
     core::crd::CustomResourceExt,
     runtime::wait::{await_condition, conditions},
-    Api, Client, Error,
 };
 use log::{info, trace};
 use schemars::JsonSchema;
@@ -80,7 +80,10 @@ pub async fn crd_deploy(client: Client) -> Result<CustomResourceDefinition, Erro
 /// Note: It is assumed the deployment exists for simplicity. Otherwise returns an Error.
 pub async fn crd_undeploy(client: Client) -> Result<(), Error> {
     let api: Api<CustomResourceDefinition> = Api::all(client);
-    match api.delete("pgoprs.pgopr.io", &DeleteParams::default()).await {
+    match api
+        .delete("pgoprs.pgopr.io", &DeleteParams::default())
+        .await
+    {
         Ok(_) => {
             info!("Deleted CRD");
         }

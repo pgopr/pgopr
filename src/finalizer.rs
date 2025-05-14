@@ -7,10 +7,10 @@
  */
 use crate::crd::v1::pgopr;
 use kube::{
-    api::{Patch, PatchParams},
     Api, Client, Error,
+    api::{Patch, PatchParams},
 };
-use serde_json::{json, Value};
+use serde_json::{Value, json};
 
 /// Adds a finalizer record into a `pgopr` kind of resource. If the finalizer already exists,
 /// this action has no effect.

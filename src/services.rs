@@ -7,8 +7,8 @@
  */
 use k8s_openapi::api::core::v1::{Service, ServicePort, ServiceSpec};
 use kube::{
-    api::{DeleteParams, ObjectMeta, PostParams},
     Api, Client, Error,
+    api::{DeleteParams, ObjectMeta, PostParams},
 };
 use log::{info, trace};
 use std::collections::BTreeMap;

@@ -16,8 +16,8 @@ use k8s_openapi::{
     apimachinery::pkg::apis::meta::v1::LabelSelector,
 };
 use kube::{
-    api::{DeleteParams, ObjectMeta, PostParams},
     Api, Client, Error,
+    api::{DeleteParams, ObjectMeta, PostParams},
 };
 use log::{info, trace};
 use std::collections::BTreeMap;
@@ -44,7 +44,8 @@ pub async fn primary_deploy(
     let deployment_api: Api<Deployment> = Api::namespaced(client, namespace);
     match deployment_api
         .create(&PostParams::default(), &deployment)
-        .await {
+        .await
+    {
         Ok(o) => {
             info!("Created Primary");
             return Ok(o);

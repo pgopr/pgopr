@@ -5,16 +5,16 @@
  *   PUBLIC LICENSE ("AGREEMENT"). ANY USE, REPRODUCTION OR DISTRIBUTION
  *   OF THE PROGRAM CONSTITUTES RECIPIENT'S ACCEPTANCE OF THIS AGREEMENT.
  */
-use clap::{crate_description, crate_name, crate_version, value_parser, Arg, Command};
-use clap_complete::{generate, Generator, Shell};
+use clap::{Arg, Command, crate_description, crate_name, crate_version, value_parser};
+use clap_complete::{Generator, Shell, generate};
 use futures::stream::StreamExt;
 use kube::{
+    Resource, ResourceExt,
     api::Api,
     client::Client,
-    runtime::{controller::Action, watcher, Controller},
-    Resource, ResourceExt,
+    runtime::{Controller, controller::Action, watcher},
 };
-use log::{debug, error, info, LevelFilter};
+use log::{LevelFilter, debug, error, info};
 use log4rs::{
     append::console::{ConsoleAppender, Target},
     config::{Appender, Config, Logger, Root},
@@ -144,8 +144,13 @@ fn cli() -> Command {
 /// - `gen` - The generator to be used
 /// - `cmd` - The command line structure
 ///
-fn generate_completions<G: Generator>(gen: G, cmd: &mut Command) {
-    generate(gen, cmd, cmd.get_name().to_string(), &mut std::io::stdout());
+fn generate_completions<G: Generator>(r#gen: G, cmd: &mut Command) {
+    generate(
+        r#gen,
+        cmd,
+        cmd.get_name().to_string(),
+        &mut std::io::stdout(),
+    );
 }
 
 /// The main method

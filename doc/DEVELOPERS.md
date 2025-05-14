@@ -210,7 +210,25 @@ Now that we've attempted to use `pgopr`, take a moment to relax. There are a few
 
 1. Since we initialized the database in `/tmp`, the data in this directory might be removed after you go offline, depending on your OS configuration. If you want to make it permanent, choose a different directory.
 
-2. Always use uncrustify to format your code when you make modifications.
+2. Always format your code when you make modifications using the provided rustfmt.sh script.
+
+## Code Formatting
+
+The project includes a simple rustfmt.sh script to ensure consistent code formatting using Rust's built-in formatter (rustfmt). 
+
+### Setting up the rustfmt.sh script
+
+1. Make sure the script is executable:
+   ```sh
+   chmod +x rustfmt.sh
+   ```
+
+2. Running the formatter:
+   ```sh
+   ./rustfmt.sh
+   ```
+
+This script will format all Rust files in the project according to the project's formatting guidelines. Always run this script before committing changes to ensure consistent code style across the codebase.
 
 ## Rust programming
 

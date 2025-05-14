@@ -7,8 +7,8 @@
 [package]
 name = "pgopr"
 version = "0.2.0"
-authors = ["Jesper Pedersen <jesperpedersen.db@gmail.com>", "Cristian Guarino <cristian.guarino.j@gmail.com>"]
-edition = "2021"
+authors = ["Jesper Pedersen <jesperpedersen.db@gmail.com>", "Cristian Guarino <cristian.guarino.j@gmail.com>", "Nick Boyadjian <nboyadjian95@gmail.com>"]
+edition = "2024"
 license = "Eclipse Public License 2.0"
 description = "PostgreSQL operator for Kubernetes"
 
