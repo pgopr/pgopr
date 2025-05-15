@@ -51,7 +51,7 @@ Using `mypass` as the password.
 Output:
 
 ```bash
-psql (13.20, server 13.7 (Debian 13.7-1.pgdg110+1))
+psql (17.5)
 Type "help" for help.
 
 mydb=#

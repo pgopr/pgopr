@@ -4,7 +4,7 @@
 
 ## Features
 
-* PostgreSQL 13 primary instance
+* PostgreSQL 17 primary instance
 * Command line interface
 * CustomResourceDefinition interface
 * Shell completion

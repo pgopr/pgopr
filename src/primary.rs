@@ -5,6 +5,8 @@
  *   PUBLIC LICENSE ("AGREEMENT"). ANY USE, REPRODUCTION OR DISTRIBUTION
  *   OF THE PROGRAM CONSTITUTES RECIPIENT'S ACCEPTANCE OF THIS AGREEMENT.
  */
+const POSTGRES_VERSION: &str = "17";
+
 use k8s_openapi::{
     api::{
         apps::v1::{Deployment, DeploymentSpec},
@@ -102,7 +104,14 @@ fn primary_create(name: &str, namespace: &str) -> Deployment {
                 spec: Some(PodSpec {
                     containers: vec![Container {
                         name: name.to_owned(),
-                        image: Some("postgres:13.7".to_owned()),
+                        image: Some(format!("postgres:{}", POSTGRES_VERSION)),
+                        args: Some(vec![
+                            "postgres".to_string(),
+                            "-c".to_string(),
+                            "summarize_wal=on".to_string(),
+                            "-c".to_string(),
+                            "wal_summary_keep_time=0".to_string(),
+                        ]),
                         image_pull_policy: Some("IfNotPresent".to_string()),
                         ports: Some(vec![ContainerPort {
                             container_port: 5432,
