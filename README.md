@@ -35,17 +35,18 @@ dnf install -y git rust rust-std-static cargo rustfmt clippy postgresql
 ``` bash
 git clone https://github.com/pgopr/pgopr.git
 cd pgopr
-cargo build
-cd target/debug
+make install
 kind create cluster
-./pgopr install
-./pgopr provision primary
+pgopr install
+pgopr provision primary
 kubectl port-forward postgresql-XYZ 5432:5432
 psql -h localhost -p 5432 -U myuser --password mydb
-./pgopr retire primary
-./pgopr uninstall
+pgopr retire primary
+pgopr uninstall
 kind delete cluster
 ```
+
+pgopr will be installed to `/usr/local/bin`. Please ensure this directory is in your PATH to use the CLI.
 
 Using `mypass` as the password.
 

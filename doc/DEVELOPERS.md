@@ -7,16 +7,13 @@
 #### Basic dependencies
 
 ``` sh
-dnf install git rust rustfmt rust-srpm rust-std-static cargo
+dnf install git rust rustfmt rust-srpm rust-std-static cargo make
 ```
 
-### Check version
-
-You can navigate to `target/debug` and execute `./pgopr --help` to verify the version,:
+### Install
 
 ``` sh
-cargo clean
-cargo build
+make build
 cd target/debug
 ./pgopr --help
 ```

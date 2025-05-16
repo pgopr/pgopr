@@ -46,7 +46,7 @@ To build the `main` branch:
 ```
 git clone https://github.com/pgopr/pgopr.git
 cd pgopr
-cargo build
+make build
 cd target/debug
 ./pgopr
 ```
