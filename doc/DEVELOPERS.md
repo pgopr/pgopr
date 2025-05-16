@@ -1,43 +1,5 @@
 # Developer guide
 
-## Install PostgreSQL
-
-For RPM based distributions such as Fedora and RHEL you can add the
-[PostgreSQL YUM repository](https://yum.postgresql.org/) and do the install via
-
-**Fedora 42**
-
-```sh
-rpm -Uvh https://download.postgresql.org/pub/repos/yum/reporpms/F-42-x86_64/pgdg-redhat-repo-latest.noarch.rpm
-```
-
-**RHEL 9.x / Rocky Linux 9.x**
-
-**x86_64**
-
-```sh
-dnf install https://dl.fedoraproject.org/pub/epel/epel-release-latest-9.noarch.rpm
-rpm -Uvh https://download.postgresql.org/pub/repos/yum/reporpms/EL-9-x86_64/pgdg-redhat-repo-latest.noarch.rpm
-dnf config-manager --set-enabled crb
-```
-
-**aarch64**
-
-```sh
-dnf install https://dl.fedoraproject.org/pub/epel/epel-release-latest-9.noarch.rpm
-rpm -Uvh https://download.postgresql.org/pub/repos/yum/reporpms/EL-9-aarch64/pgdg-redhat-repo-latest.noarch.rpm
-dnf config-manager --set-enabled crb
-```
-
-**PostgreSQL 17**
-
-``` sh
-dnf -qy module disable postgresql
-dnf install -y postgresql17 postgresql17-server postgresql17-contrib postgresql17-libs
-```
-
-This will install PostgreSQL 17.
-
 ## Install pgopr
 
 ### Pre-install
@@ -61,111 +23,7 @@ cd target/debug
 
 ## Setup pgopr
 
-Let's give it a try. The basic idea here is that we will use two users: one is `postgres`, which will run PostgreSQL, and one is [**pgopr**](https://github.com/pgopr/pgopr), which will run [**pgopr**](https://github.com/pgopr/pgopr) to control PostgreSQL.
-
-In many installations, there is already an operating system user named `postgres` that is used to run the PostgreSQL server. You can use the command
-
-``` sh
-getent passwd | grep postgres
-```
-
-to check if your OS has a user named postgres. If not use
-
-``` sh
-useradd -ms /bin/bash postgres
-passwd postgres
-```
-
-If the postgres user already exists, don't forget to set its password for convenience.
-
-### 1. postgres
-
-Open a new window, switch to the `postgres` user. This section will always operate within this user space.
-
-``` sh
-sudo su -
-su - postgres
-```
-
-#### Initialize cluster
-
-If you use dnf to install your postgresql, chances are the binary file is in `/usr/bin/`
-
-``` sh
-export PATH=/usr/bin:$PATH
-initdb -k /tmp/pgsql
-```
-
-#### Remove default acess
-
-Remove last lines from `/tmp/pgsql/pg_hba.conf`
-
-``` ini
-host    all             all             127.0.0.1/32            trust
-host    all             all             ::1/128                 trust
-host    replication     all             127.0.0.1/32            trust
-host    replication     all             ::1/128                 trust
-```
-
-#### Add access for users and a database
-
-Add new lines to `/tmp/pgsql/pg_hba.conf`
-
-``` ini
-host    mydb             myuser          127.0.0.1/32            scram-sha-256
-host    mydb             myuser          ::1/128                 scram-sha-256
-```
-
-#### Set password_encryption
-
-Set `password_encryption` value in `/tmp/pgsql/postgresql.conf` to be `scram-sha-256`
-
-``` sh
-password_encryption = scram-sha-256
-```
-
-For version 14 and above the default is `scram-sha-256`. Therefore, you should ensure that the value in `/tmp/pgsql/postgresql.conf` matches the value in `/tmp/pgsql/pg_hba.conf`.
-
-#### Set replication level
-
-Set wal_level value in `/tmp/pgsql/postgresql.conf` to be `replica`
-
-``` sh
-wal_level = replica
-```
-
-#### Start PostgreSQL
-
-``` sh
-pg_ctl  -D /tmp/pgsql/ start
-```
-
-Here, you may encounter issues such as the port being occupied or permission being denied. If you experience a failure, you can go to `/tmp/pgsql/log` to check the reason.
-
-You can use
-
-``` sh
-pg_isready
-```
-
-to test
-
-#### Add user and a database
-
-``` sh
-export PATH=/usr/pgsql-17/bin:$PATH
-createuser -P myuser
-createdb -E UTF8 -O myuser mydb
-```
-
-#### Verify access
-
-For the user `myuser` (standard) use `mypass`
-
-``` sh
-psql -h localhost -p 5432 -U myuser mydb
-\q
-```
+Let's give it a try. The basic idea here is that we will use [**pgopr**](https://github.com/pgopr/pgopr), which will control PostgreSQL.
 
 #### Add pgopr user
 
@@ -208,32 +66,30 @@ and you can use the commands.
 
 Now that we've attempted to use `pgopr`, take a moment to relax. There are a few things we need to pay attention to:
 
-1. Since we initialized the database in `/tmp`, the data in this directory might be removed after you go offline, depending on your OS configuration. If you want to make it permanent, choose a different directory.
-
-2. Always format your code when you make modifications using the provided rustfmt.sh script.
+1. Always format your code when you make modifications using the provided rustfmt.sh script.
 
 ## Code Formatting
 
-The project includes a simple rustfmt.sh script to ensure consistent code formatting using Rust's built-in formatter (rustfmt). 
+The project includes a simple rustfmt.sh script to ensure consistent code formatting using Rust's built-in formatter (rustfmt).
 
 ### Setting up the rustfmt.sh script
 
 1. Make sure the script is executable:
-   ```sh
-   chmod +x rustfmt.sh
-   ```
 
-2. Running the formatter:
-   ```sh
-   ./rustfmt.sh
+```sh
+chmod +x rustfmt.sh
+```
+
+2. Running the formatter
+```sh
+./rustfmt.sh
    ```
 
 This script will format all Rust files in the project according to the project's formatting guidelines. Always run this script before committing changes to ensure consistent code style across the codebase.
 
 ## Rust programming
 
-[**pgopr**](https://github.com/pgopr/pgopr) is developed using the [Rust programming language](https://en.wikipedia.org/wiki/Rust_(programming_language) so it is a good
-idea to have some knowledge about the language before you begin to make changes.
+[**pgopr**](https://github.com/pgopr/pgopr) is developed using the [Rust programming language](https://en.wikipedia.org/wiki/Rust_(programming_language) so it is a good idea to have some knowledge about the language before you begin to make changes.
 
 There are books like,
 
