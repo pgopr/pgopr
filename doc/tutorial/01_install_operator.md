@@ -10,7 +10,7 @@ Before installing pgopr, ensure you have the following prerequisites:
 
 - [Kubernetes](https://kubernetes.io/) 1.32 or later
 - [Rust](https://www.rust-lang.org/) and [Cargo](https://doc.rust-lang.org/cargo/)
-- [kind](https://kind.sigs.k8s.io/) 0.27 or later
+- [kind](https://kind.sigs.k8s.io/) 0.29 or later
 - [minikube](https://minikube.sigs.k8s.io/docs/start/)
 - [kubectl](https://kubernetes.io/docs/tasks/tools/) (to run commands against Kubernetes cluster)
 - PostgreSQL client tools (for database interaction)
@@ -53,7 +53,7 @@ Output:
 ```bash
 enabling experimental podman provider
 Creating cluster "kind" ...
-✓ Ensuring node image (kindest/node:v1.32.2) 🖼
+✓ Ensuring node image (kindest/node:v1.33.1) 🖼
 ✓ Preparing nodes 📦
 ✓ Writing configuration 📜
 ✓ Starting control-plane 🕹️

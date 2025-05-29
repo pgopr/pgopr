@@ -22,7 +22,7 @@
 
 ## Runtime platforms
 
-* [kind](https://kind.sigs.k8s.io/) 0.22+ ([Guide](https://github.com/pgopr/pgopr-k8s/tree/main/providers/kind))
+* [kind](https://kind.sigs.k8s.io/) 0.29+ ([Guide](https://github.com/pgopr/pgopr-k8s/tree/main/providers/kind))
 
 ## Developer
 
