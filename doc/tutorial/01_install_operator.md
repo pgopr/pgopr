@@ -67,6 +67,22 @@ kubectl cluster-info --context kind-kind
 Not sure what to do next? 😅  Check out https://kind.sigs.k8s.io/docs/user/quick-start/
 ```
 
+Note, that you may need
+
+```bash
+sudo sysctl fs.inotify.max_user_watches=524288
+sudo sysctl fs.inotify.max_user_instances=512
+```
+
+before you start `kind`. You can edit `/etc/sysctl.conf` to include
+
+```
+fs.inotify.max_user_watches = 524288
+fs.inotify.max_user_instances = 512
+```
+
+and reboot as well.
+
 5. Install pgopr:
 
 ```bash

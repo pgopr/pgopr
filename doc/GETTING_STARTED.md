@@ -35,7 +35,7 @@ compile and install `pgopr` in your system.
 We will run `pgopr` using the follow commands
 
 ```
-KIND_EXPERIMENTAL_PROVIDER=podman kind create cluster
+kind create cluster
 pgopr install
 pgopr provision primary
 kubectl get services
@@ -50,8 +50,24 @@ To shutdown the operator use
 ```
 pgopr retire primary
 pgopr uninstall
-KIND_EXPERIMENTAL_PROVIDER=podman kind delete cluster
+kind delete cluster
 ```
+
+You may need to do
+
+```bash
+sudo sysctl fs.inotify.max_user_watches=524288
+sudo sysctl fs.inotify.max_user_instances=512
+```
+
+or edit `/etc/sysctl.conf` to include
+
+```
+fs.inotify.max_user_watches = 524288
+fs.inotify.max_user_instances = 512
+```
+
+and reboot.
 
 ## Closing
 
