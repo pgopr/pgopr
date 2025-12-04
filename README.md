@@ -1,6 +1,6 @@
 # pgopr: PostgreSQL operator for Kubernetes
 
-`pgopr` is an operator that controls a PostgreSQL cluster and related technologies using [Kubernetes](https://kubernetes.io/) 1.28+.
+`pgopr` is an operator that controls a PostgreSQL cluster and related technologies using [Kubernetes](https://kubernetes.io/).
 
 ## Features
 
@@ -11,13 +11,13 @@
 
 ## Requirements
 
-* [Kubernetes](https://kubernetes.io/) 1.28+
+* [Kubernetes](https://kubernetes.io/) 1.34+
 
 ## Technologies
 
 * [Rust](https://www.rust-lang.org/)
 * [Cargo](https://doc.rust-lang.org/cargo/)
-* [kube-rs](https://github.com/kube-rs/kube-rs)
+* [kube](https://github.com/kube-rs/kube)
 * [k8s-openapi](https://github.com/Arnavion/k8s-openapi)
 
 ## Runtime platforms
@@ -26,7 +26,7 @@
 
 ## Developer
 
-For Fedora 36:
+For Fedora 43:
 
 ``` bash
 dnf install -y git rust rust-std-static cargo rustfmt clippy postgresql
