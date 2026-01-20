@@ -7,14 +7,12 @@
  */
 use clap::{Arg, Command, crate_description, crate_name, crate_version, value_parser};
 use clap_complete::{Generator, Shell, generate};
-use futures::stream::StreamExt;
 use kube::{
     Resource, ResourceExt,
-    api::Api,
     client::Client,
-    runtime::{Controller, controller::Action, watcher},
+    runtime::{controller::Action},
 };
-use log::{LevelFilter, debug, error, info};
+use log::{LevelFilter};
 use log4rs::{
     append::console::{ConsoleAppender, Target},
     config::{Appender, Config, Logger, Root},
@@ -25,6 +23,7 @@ use tokio::time::Duration;
 use crate::crd::v1::pgopr;
 
 pub mod crd;
+pub mod handlers;
 mod finalizer;
 mod k8s;
 mod persistent;
@@ -32,7 +31,7 @@ mod primary;
 mod services;
 
 /// Context injected with each `reconcile` and `on_error` method invocation
-struct ContextData {
+pub(crate) struct ContextData {
     /// Kubernetes client
     client: Client,
 }
@@ -168,138 +167,36 @@ async fn main() {
             }
         }
 
-        Some(("generate", sub_matches)) => match *sub_matches.get_one("type").unwrap() {
-            "crd" => {
-                crd::crd_generate();
-            }
+        Some(("generate", sub_matches)) => {
+            handlers::generate::handle_generate(sub_matches);
+        }
 
-            "service" => {
-                services::service_generate();
-            }
-
-            "persistent" => {
-                persistent::persistent_generate();
-            }
-
-            "primary" => {
-                primary::primary_generate();
-            }
-
-            name => {
-                unreachable!("Unsupported type `{}`", name)
-            }
-        },
-
-        Some(("install", _sub_matches)) => {
-            info!("{} {}", crate_name!(), crate_version!());
-            info!("{}", crate_description!());
-
-            let client: Client = k8s::k8s_client().await;
-            let _ = crd::crd_deploy(client).await;
+        Some(("install", _)) => {
+            handlers::cluster::handle_install().await;
         }
 
         Some(("provision", sub_matches)) => {
-            let provision_command = sub_matches.subcommand().unwrap_or(("primary", sub_matches));
-            match provision_command {
-                ("primary", _sub_matches) => {
-                    info!("{} {}", crate_name!(), crate_version!());
-                    info!("{}", crate_description!());
-
-                    debug!("primary");
-                    let client: Client = k8s::k8s_client().await;
-                    let namespace = "default".to_owned();
-
-                    let _pv = persistent::persistent_volume_deploy(
-                        client.clone(),
-                        "postgresql-pv-volume",
-                        5u32,
-                    )
-                    .await;
-
-                    let _pvc = persistent::persistent_volume_claim_deploy(
-                        client.clone(),
-                        "postgresql-pv-claim",
-                        &namespace,
-                        5u32,
-                    )
-                    .await;
-
-                    let _d =
-                        primary::primary_deploy(client.clone(), "postgresql", &namespace).await;
-
-                    let _s =
-                        services::service_deploy(client.clone(), "postgresql", &namespace).await;
-                }
-
-                (name, _) => {
-                    unreachable!("Unsupported subcommand `{}`", name)
-                }
+            let (name, _) = sub_matches.subcommand().unwrap_or(("primary", sub_matches));
+            match name {
+                "primary" => handlers::cluster::handle_provision_primary().await,
+                name => unreachable!("Unsupported subcommand `{}`", name),
             }
         }
 
         Some(("retire", sub_matches)) => {
-            let retire_command = sub_matches.subcommand().unwrap_or(("primary", sub_matches));
-            match retire_command {
-                ("primary", _sub_matches) => {
-                    info!("{} {}", crate_name!(), crate_version!());
-                    info!("{}", crate_description!());
-
-                    debug!("primary");
-                    let client: Client = k8s::k8s_client().await;
-                    let namespace = "default".to_owned();
-
-                    let _s =
-                        services::service_undeploy(client.clone(), "postgresql", &namespace).await;
-                    let _d =
-                        primary::primary_undeploy(client.clone(), "postgresql", &namespace).await;
-                    let _pvc = persistent::persistent_volume_claim_undeploy(
-                        client.clone(),
-                        "postgresql-pv-claim",
-                        &namespace,
-                    )
-                    .await;
-                    let _pv = persistent::persistent_volume_undeploy(
-                        client.clone(),
-                        "postgresql-pv-volume",
-                    )
-                    .await;
-                }
-                (name, _) => {
-                    unreachable!("Unsupported subcommand `{}`", name)
-                }
+            let (name, _) = sub_matches.subcommand().unwrap_or(("primary", sub_matches));
+            match name {
+                "primary" => handlers::cluster::handle_retire_primary().await,
+                name => unreachable!("Unsupported subcommand `{}`", name),
             }
         }
 
-        Some(("uninstall", _sub_matches)) => {
-            info!("{} {}", crate_name!(), crate_version!());
-            info!("{}", crate_description!());
-
-            let client: Client = k8s::k8s_client().await;
-            let _ = crd::crd_undeploy(client).await;
+        Some(("uninstall", _)) => {
+            handlers::cluster::handle_uninstall().await;
         }
 
         _ => {
-            info!("{} {}", crate_name!(), crate_version!());
-            info!("{}", crate_description!());
-
-            let client: Client = k8s::k8s_client().await;
-            let crd_api: Api<pgopr> = Api::all(client.clone());
-            let context: Arc<ContextData> = Arc::new(ContextData::new(client.clone()));
-
-            // Start the controller
-            Controller::new(crd_api.clone(), watcher::Config::default())
-                .run(reconcile, on_error, context)
-                .for_each(|reconciliation_result| async move {
-                    match reconciliation_result {
-                        Ok(pgopr_resource) => {
-                            debug!("Reconciliation successful. Resource: {:?}", pgopr_resource);
-                        }
-                        Err(reconciliation_err) => {
-                            error!("Reconciliation error: {:?}", reconciliation_err)
-                        }
-                    }
-                })
-                .await;
+            handlers::operator::run_operator().await;
         }
     }
 }
@@ -370,7 +267,7 @@ fn determine_action(pgopr: &pgopr) -> PgOprAction {
 /// # Arguments
 /// - `error`: The error
 /// - `_context`: Unused argument
-fn on_error(_obj: Arc<pgopr>, error: &Error, _context: Arc<ContextData>) -> Action {
+pub(crate) fn on_error(_obj: Arc<pgopr>, error: &Error, _context: Arc<ContextData>) -> Action {
     eprintln!("Reconciliation error:\n{:?}", error);
     Action::requeue(Duration::from_secs(5))
 }
