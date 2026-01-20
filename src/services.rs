@@ -35,7 +35,7 @@ pub async fn service_deploy(client: Client, name: &str, namespace: &str) -> Resu
         info!("Created Service");
     }
 
-    return result;
+    result
 }
 
 /// Deletes a service
@@ -53,7 +53,7 @@ pub async fn service_undeploy(client: Client, name: &str, namespace: &str) -> Re
             info!("Deleted Service");
         }
 
-        Err(e) => return Err(e.into()),
+        Err(e) => return Err(e),
     }
 
     Ok(())

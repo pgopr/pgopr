@@ -164,7 +164,7 @@ async fn main() {
         Some(("completion", sub_matches)) => {
             if let Some(generator) = sub_matches.get_one::<Shell>("type") {
                 let mut cli = cli();
-                generate_completions(generator.clone(), &mut cli);
+                generate_completions(*generator, &mut cli);
             }
         }
 
@@ -324,7 +324,7 @@ async fn reconcile(pgopr: Arc<pgopr>, context: Arc<ContextData>) -> Result<Actio
     };
 
     // Performs action as decided by the `determine_action` function.
-    return match determine_action(&pgopr) {
+    match determine_action(&pgopr) {
         PgOprAction::CreatePrimary => {
             let name = pgopr.name_any();
 
@@ -342,7 +342,7 @@ async fn reconcile(pgopr: Arc<pgopr>, context: Arc<ContextData>) -> Result<Actio
         }
 
         PgOprAction::NoOp => Ok(Action::requeue(Duration::from_secs(10))),
-    };
+    }
 }
 
 /// Determine the action
@@ -351,18 +351,18 @@ async fn reconcile(pgopr: Arc<pgopr>, context: Arc<ContextData>) -> Result<Actio
 /// - `pgopr`: A reference to `pgopr` being reconciled to decide next action upon
 ///
 fn determine_action(pgopr: &pgopr) -> PgOprAction {
-    return if pgopr.meta().deletion_timestamp.is_some() {
+    if pgopr.meta().deletion_timestamp.is_some() {
         PgOprAction::DeletePrimary
     } else if pgopr
         .meta()
         .finalizers
         .as_ref()
-        .map_or(true, |finalizers| finalizers.is_empty())
+        .is_none_or(|finalizers| finalizers.is_empty())
     {
         PgOprAction::CreatePrimary
     } else {
         PgOprAction::NoOp
-    };
+    }
 }
 
 /// The on_error callback

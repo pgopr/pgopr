@@ -69,7 +69,7 @@ pub async fn crd_deploy(client: Client) -> Result<CustomResourceDefinition, Erro
         info!("Created CRD");
     }
 
-    return result;
+    result
 }
 
 /// Delete the CustomResourceDefinition object
@@ -88,7 +88,7 @@ pub async fn crd_undeploy(client: Client) -> Result<(), Error> {
             info!("Deleted CRD");
         }
 
-        Err(e) => return Err(e.into()),
+        Err(e) => return Err(e),
     }
 
     Ok(())

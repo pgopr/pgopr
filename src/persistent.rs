@@ -43,9 +43,9 @@ pub async fn persistent_volume_deploy(
     match pv_api.create(&pp, &pv).await {
         Ok(o) => {
             info!("Created PersistentVolume");
-            return Ok(o);
+            Ok(o)
         }
-        Err(e) => return Err(e.into()),
+        Err(e) => Err(e),
     }
 }
 
@@ -63,7 +63,7 @@ pub async fn persistent_volume_undeploy(client: Client, name: &str) -> Result<()
             info!("Deleted PersistentVolume");
         }
 
-        Err(e) => return Err(e.into()),
+        Err(e) => return Err(e),
     }
     Ok(())
 }
@@ -93,9 +93,9 @@ pub async fn persistent_volume_claim_deploy(
     match pvc_api.create(&pp, &pvc).await {
         Ok(o) => {
             info!("Created PersistentVolumeClaim");
-            return Ok(o);
+            Ok(o)
         }
-        Err(e) => return Err(e.into()),
+        Err(e) => Err(e),
     }
 }
 
@@ -118,7 +118,7 @@ pub async fn persistent_volume_claim_undeploy(
             info!("Deleted PersistentVolumeClaim");
         }
 
-        Err(e) => return Err(e.into()),
+        Err(e) => return Err(e),
     }
     Ok(())
 }
@@ -140,7 +140,7 @@ fn pv_create(name: &str, storage: u32) -> PersistentVolume {
     labels.insert("type".to_owned(), "local".to_owned());
 
     let mut size: String = storage.to_string().to_owned();
-    size.push_str(&"Gi".to_owned());
+    size.push_str("Gi");
 
     let mut cap: BTreeMap<String, Quantity> = BTreeMap::new();
     cap.insert("storage".to_owned(), Quantity(size));
@@ -173,7 +173,7 @@ fn pvc_create(name: &str, namespace: &str, storage: u32) -> PersistentVolumeClai
     labels.insert("app".to_owned(), "postgresql".to_owned());
 
     let mut size: String = storage.to_string().to_owned();
-    size.push_str(&"Gi".to_owned());
+    size.push_str("Gi");
 
     let mut cap: BTreeMap<String, Quantity> = BTreeMap::new();
     cap.insert("storage".to_owned(), Quantity(size));

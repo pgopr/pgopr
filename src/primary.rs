@@ -50,9 +50,9 @@ pub async fn primary_deploy(
     {
         Ok(o) => {
             info!("Created Primary");
-            return Ok(o);
+            Ok(o)
         }
-        Err(e) => return Err(e.into()),
+        Err(e) => Err(e),
     }
 }
 
@@ -71,7 +71,7 @@ pub async fn primary_undeploy(client: Client, name: &str, namespace: &str) -> Re
             info!("Deleted Primary");
         }
 
-        Err(e) => return Err(e.into()),
+        Err(e) => return Err(e),
     }
     Ok(())
 }
