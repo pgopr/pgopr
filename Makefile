@@ -4,19 +4,22 @@
 #   PUBLIC LICENSE ("AGREEMENT"). ANY USE, REPRODUCTION OR DISTRIBUTION
 #   OF THE PROGRAM CONSTITUTES RECIPIENT'S ACCEPTANCE OF THIS AGREEMENT.
 
-.PHONY: all clean install release
+.PHONY: all clean build release install uninstall
 
 BINARY_NAME = pgopr
 
-all: release
+all: build
 
 clean:
 	cargo clean
 
 build:
+	cargo fmt
 	cargo build
+	cargo clippy
 
 release:
+	cargo clean
 	cargo build --release
 
 install: release
