@@ -7,12 +7,8 @@
  */
 use clap::{Arg, Command, crate_description, crate_name, crate_version, value_parser};
 use clap_complete::{Generator, Shell, generate};
-use kube::{
-    Resource, ResourceExt,
-    client::Client,
-    runtime::{controller::Action},
-};
-use log::{LevelFilter};
+use kube::{Resource, ResourceExt, client::Client, runtime::controller::Action};
+use log::LevelFilter;
 use log4rs::{
     append::console::{ConsoleAppender, Target},
     config::{Appender, Config, Logger, Root},
@@ -23,8 +19,8 @@ use tokio::time::Duration;
 use crate::crd::v1::pgopr;
 
 pub mod crd;
-pub mod handlers;
 mod finalizer;
+pub mod handlers;
 mod k8s;
 mod persistent;
 mod primary;
