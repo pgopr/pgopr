@@ -1,98 +1,151 @@
-# Developer guide
+# Developer Guide
 
-## Install pgopr
+This document describes the development workflow for **pgopr**.
 
-### Pre-install
+It is intended for developers who want to build, test, debug, or extend the project.
 
-#### Basic dependencies
+- For contribution rules and PR workflow, see [CONTRIBUTING.md](../CONTRIBUTING.md)
+- For user setup and runtime configuration, see [GETTING_STARTED.md](GETTING_STARTED.md)
 
-``` sh
-dnf install git rust rustfmt rust-srpm rust-std-static cargo make
+---
+
+## Prerequisites
+
+- Rust 1.85+
+- Rust toolchain (stable), preferably installed via [rustup](https://rustup.rs)
+- `cargo` (included with Rust)
+- `git`
+- A running Kubernetes environment (e.g., [kind](https://kind.sigs.k8s.io/))
+
+On Linux, some distributions provide useful system packages:
+
+```bash
+# Fedora / RHEL
+sudo dnf install git rustfmt clippy
 ```
 
-### Install
+Using **rustup** is recommended for consistent toolchain management across platforms.
 
-``` sh
+---
+
+## Building
+
+All build tasks are handled by Cargo (or via the provided `Makefile`).
+
+### Debug build
+
+```bash
 make build
-cd target/debug
-./pgopr --help
+# or
+cargo build
 ```
 
-## Setup pgopr
+### Release build
 
-Let's give it a try. The basic idea here is that we will use [**pgopr**](https://github.com/pgopr/pgopr), which will control PostgreSQL.
+```bash
+make release
+# or
+cargo build --release
+```
 
-#### Add pgopr user
+Binaries are placed in:
 
-``` sh
+* `target/debug/`
+* `target/release/`
+
+---
+
+## Generate User and Developer Guide
+
+This process is optional. If you choose not to generate the PDF and HTML manuals, you can skip these steps.
+
+### Download dependencies
+
+```bash
+# Fedora
+sudo dnf install pandoc texlive-scheme-basic
+```
+
+### Setup Eisvogel
+
+Locate your user data directory (`$HOME/.local/share/pandoc` on Linux) and install the Eisvogel template:
+
+```bash
+wget https://github.com/Wandmalfarbe/pandoc-latex-template/releases/download/v3.4.0/Eisvogel-3.4.0.tar.gz
+tar -xzf Eisvogel-3.4.0.tar.gz
+mkdir -p $HOME/.local/share/pandoc/templates
+mv Eisvogel-3.4.0/eisvogel.latex $HOME/.local/share/pandoc/templates/
+```
+
+### Build documentation
+
+Run from the project root:
+
+```bash
+make doc
+```
+
+---
+
+## Environment Setup
+
+### Add pgopr user
+
+For isolated testing on Linux:
+
+```bash
 sudo su -
 useradd -ms /bin/bash pgopr
-passwd pgmoneta
+passwd pgopr
 exit
 ```
 
-#### Add Kubernetes environment
+### Kubernetes Environment
 
-You will need a Kubernetes environment such as
+You will need a Kubernetes environment along with their dependencies:
 
 * [kind](https://github.com/kubernetes-sigs/kind)
 * [minikube](https://github.com/kubernetes/minikube/)
 
-along with their dependencies.
+---
 
-### 2. pgopr
+## Formatting and Linting
 
-Open a new window, switch to the `pgopr` user. This section will always operate within this user space.
+Code formatting and linting are enforced by CI.
 
-``` sh
-sudo su -
-su - pgopr
+### Format code
+
+To automatically format your Rust source code:
+
+```bash
+cargo fmt --all
 ```
 
-#### Using pgopr
+### Run Clippy
 
-Open a new terminal and log in with `pgopr
+To run the Rust linter and check for issues:
 
-``` sh
-pgopr --help
+```bash
+cargo clippy
 ```
 
-and you can use the commands.
+---
 
-## End
+## Testing
 
-Now that we've attempted to use `pgopr`, take a moment to relax. There are a few things we need to pay attention to:
+### Run all tests
 
-1. Always format your code when you make modifications using the provided rustfmt.sh script.
-
-## Code Formatting
-
-The project includes a simple rustfmt.sh script to ensure consistent code formatting using Rust's built-in formatter (rustfmt).
-
-### Setting up the rustfmt.sh script
-
-1. Make sure the script is executable:
-
-```sh
-chmod +x rustfmt.sh
+```bash
+cargo test
 ```
 
-2. Running the formatter
-```sh
-./rustfmt.sh
-   ```
+### Run tests with output
 
-This script will format all Rust files in the project according to the project's formatting guidelines. Always run this script before committing changes to ensure consistent code style across the codebase.
+```bash
+cargo test -- --nocapture
+```
 
-## Rust programming
-
-[**pgopr**](https://github.com/pgopr/pgopr) is developed using the [Rust programming language](https://en.wikipedia.org/wiki/Rust_(programming_language) so it is a good idea to have some knowledge about the language before you begin to make changes.
-
-There are books like,
-
-* [Rust](https://doc.rust-lang.org/book/)
-
-that can help you
+---
 
 ## Basic git guide
 
@@ -113,74 +166,42 @@ This is done by
 git clone git@github.com:<username>/pgopr.git
 ```
 
-### Add upstream
-
-Do
+### Add upstream remote
 
 ```sh
 cd pgopr
 git remote add upstream https://github.com/pgopr/pgopr.git
 ```
 
-### Do a work branch
+### Create a work branch
 
 ```sh
 git checkout -b mywork main
 ```
 
-### Make the changes
+### Commit message format
 
-Remember to verify the compile and execution of the code
+Include the issue number in your commit messages: `[#issue_number] commit message`.
 
-### AUTHORS
+### SQUASH AND REBASE
 
-Remember to add your name to the following files,
+Before submitting a Pull Request, ensure your history is clean:
 
-```
-AUTHORS
-Cargo.toml
-```
-
-in your first pull request
-
-### Multiple commits
-
-If you have multiple commits on your branch then squash them
-
-``` sh
-git rebase -i HEAD~2
-```
-
-for example. It is `p` for the first one, then `s` for the rest
-
-### Rebase
-
-Always rebase
-
-``` sh
+```bash
+# Squash commits
+git rebase -i HEAD~N
+# Rebase on main
 git fetch upstream
 git rebase -i upstream/main
 ```
 
-### Force push
+---
 
-When you are done with your changes force push your branch
+## Contributing Notes
 
-``` sh
-git push -f origin mywork
-```
+* Add yourself to the `AUTHORS` and `doc/manual/en/97-acknowledgement.md` files in your first pull request
+* Follow the workflow described in [CONTRIBUTING.md](../CONTRIBUTING.md)
 
-and then create a pull requests for it
+---
 
-### Repeat
-
-Based on feedback keep making changes, squashing, rebasing and force pushing
-
-### Undo
-
-Normally you can reset to an earlier commit using `git reset <commit hash> --hard`.
-But if you accidentally squashed two or more commits, and you want to undo that,
-you need to know where to reset to, and the commit seems to have lost after you rebased.
-
-But they are not actually lost - using `git reflog`, you can find every commit the HEAD pointer
-has ever pointed to. Find the commit you want to reset to, and do `git reset --hard`.
+Thank you for contributing to **pgopr**!

@@ -4,7 +4,7 @@
 #   PUBLIC LICENSE ("AGREEMENT"). ANY USE, REPRODUCTION OR DISTRIBUTION
 #   OF THE PROGRAM CONSTITUTES RECIPIENT'S ACCEPTANCE OF THIS AGREEMENT.
 
-.PHONY: all clean build release install uninstall
+.PHONY: all clean build release install uninstall doc
 
 BINARY_NAME = pgopr
 
@@ -12,6 +12,7 @@ all: build
 
 clean:
 	cargo clean
+	rm -rf target/doc
 
 build:
 	cargo fmt
@@ -27,3 +28,6 @@ install: release
 
 uninstall:
 	rm -f /usr/local/bin/$(BINARY_NAME)
+
+doc:
+	./doc/build_manual.sh
