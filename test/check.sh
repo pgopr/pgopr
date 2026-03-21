@@ -160,6 +160,7 @@ esac
 done
 
 if [[ "$SUBCOMMAND" == "ci" ]]; then
+    trap cleanup_cluster EXIT
     setup_cluster
     build_operator
     test_operator
