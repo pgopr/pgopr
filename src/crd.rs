@@ -62,7 +62,7 @@ pub async fn crd_deploy(client: Client) -> Result<CustomResourceDefinition, Erro
     let result: Result<CustomResourceDefinition, Error> =
         crd_api.create(&PostParams::default(), &crd).await;
 
-    let establish = await_condition(crd_api, "pgopr.io", conditions::is_crd_established());
+    let establish = await_condition(crd_api, "pgoprs.pgopr.io", conditions::is_crd_established());
     let _ = tokio::time::timeout(std::time::Duration::from_secs(10), establish).await;
 
     if result.is_ok() {
