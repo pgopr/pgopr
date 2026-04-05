@@ -68,7 +68,7 @@ pub fn service_generate() {
 
 fn service_create(name: &str, namespace: &str) -> Service {
     let mut labels: BTreeMap<String, String> = BTreeMap::new();
-    labels.insert("app".to_owned(), "postgresql".to_owned());
+    labels.insert("app".to_owned(), name.to_owned());
 
     let s: Service = Service {
         metadata: ObjectMeta {

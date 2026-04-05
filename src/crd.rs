@@ -35,6 +35,8 @@ pub mod v1 {
     pub struct PgOprSpec {
         /// General settings across all components
         pub storage: u32,
+        /// Number of replicas in the star configuration
+        pub replicas: Option<u32>,
     }
 
     /// The general settings

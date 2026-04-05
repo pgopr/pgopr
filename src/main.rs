@@ -24,6 +24,7 @@ pub mod handlers;
 mod k8s;
 mod persistent;
 mod primary;
+mod replica;
 mod services;
 
 /// Context injected with each `reconcile` and `on_error` method invocation
@@ -87,6 +88,11 @@ fn cli() -> Command {
                     Command::new("primary")
                         .about("Provision a primary instance")
                         .display_order(1),
+                )
+                .subcommand(
+                    Command::new("replica")
+                        .about("Provision a replica instance")
+                        .display_order(2),
                 ),
         )
         .subcommand(
@@ -98,6 +104,11 @@ fn cli() -> Command {
                     Command::new("primary")
                         .about("Retire a primary instance")
                         .display_order(1),
+                )
+                .subcommand(
+                    Command::new("replica")
+                        .about("Retire a replica instance")
+                        .display_order(2),
                 ),
         )
         .subcommand(
@@ -127,7 +138,7 @@ fn cli() -> Command {
                         .short('t')
                         .long("type")
                         .required(true)
-                        .value_parser(vec!["crd", "service", "persistent", "primary"])
+                        .value_parser(vec!["crd", "service", "persistent", "primary", "replica"])
                         .help("Generate YAML resources"),
                 ),
         )
@@ -175,6 +186,7 @@ async fn main() {
             let (name, _) = sub_matches.subcommand().unwrap_or(("primary", sub_matches));
             match name {
                 "primary" => handlers::cluster::handle_provision_primary().await,
+                "replica" => handlers::cluster::handle_provision_replica().await,
                 name => unreachable!("Unsupported subcommand `{}`", name),
             }
         }
@@ -183,6 +195,7 @@ async fn main() {
             let (name, _) = sub_matches.subcommand().unwrap_or(("primary", sub_matches));
             match name {
                 "primary" => handlers::cluster::handle_retire_primary().await,
+                "replica" => handlers::cluster::handle_retire_replica().await,
                 name => unreachable!("Unsupported subcommand `{}`", name),
             }
         }
@@ -220,16 +233,37 @@ async fn reconcile(pgopr: Arc<pgopr>, context: Arc<ContextData>) -> Result<Actio
     match determine_action(&pgopr) {
         PgOprAction::CreatePrimary => {
             let name = pgopr.name_any();
+            let replicas = pgopr.spec.replicas.unwrap_or(0);
 
             finalizer::add(client.clone(), &name, &namespace).await?;
-            primary::primary_deploy(client, &pgopr.name_any(), &namespace).await?;
+            primary::primary_deploy(client.clone(), &name, &namespace).await?;
+
+            for i in 1..=replicas {
+                let replica_name = format!("{}-replica-{}", name, i);
+                let slot_name = format!("replica{}", i);
+                crate::replica::replica_deploy(
+                    client.clone(),
+                    &replica_name,
+                    &name,
+                    &namespace,
+                    &slot_name,
+                )
+                .await?;
+            }
 
             Ok(Action::requeue(Duration::from_secs(10)))
         }
 
         PgOprAction::DeletePrimary => {
-            primary::primary_undeploy(client.clone(), &pgopr.name_any(), &namespace).await?;
-            finalizer::delete(client, &pgopr.name_any(), &namespace).await?;
+            let name = pgopr.name_any();
+            let replicas = pgopr.spec.replicas.unwrap_or(0);
+
+            for i in 1..=replicas {
+                let replica_name = format!("{}-replica-{}", name, i);
+                crate::replica::replica_undeploy(client.clone(), &replica_name, &namespace).await?;
+            }
+            primary::primary_undeploy(client.clone(), &name, &namespace).await?;
+            finalizer::delete(client, &name, &namespace).await?;
 
             Ok(Action::await_change())
         }

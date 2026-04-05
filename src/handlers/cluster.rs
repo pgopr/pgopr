@@ -30,13 +30,20 @@ pub async fn handle_provision_primary() {
     let client: Client = k8s::k8s_client().await;
     let namespace = "default".to_owned();
 
-    let _pv =
-        persistent::persistent_volume_deploy(client.clone(), "postgresql-pv-volume", 5u32).await;
+    let _pv = persistent::persistent_volume_deploy(
+        client.clone(),
+        "postgresql-pv-volume",
+        5u32,
+        "postgresql",
+        "/tmp/kind",
+    )
+    .await;
     let _pvc = persistent::persistent_volume_claim_deploy(
         client.clone(),
         "postgresql-pv-claim",
         &namespace,
         5u32,
+        "postgresql",
     )
     .await;
     let _d = primary::primary_deploy(client.clone(), "postgresql", &namespace).await;
@@ -59,4 +66,59 @@ pub async fn handle_retire_primary() {
     )
     .await;
     let _pv = persistent::persistent_volume_undeploy(client.clone(), "postgresql-pv-volume").await;
+}
+
+/// Provisions the replica database components (PV, PVC, Deployment, Service).
+pub async fn handle_provision_replica() {
+    super::print_header();
+    debug!("replica");
+    let client: Client = k8s::k8s_client().await;
+    let namespace = "default".to_owned();
+
+    let _pv = persistent::persistent_volume_deploy(
+        client.clone(),
+        "postgresql-replica-pv-volume",
+        5u32,
+        "postgresql-replica",
+        "/tmp/kind-replica",
+    )
+    .await;
+    let _pvc = persistent::persistent_volume_claim_deploy(
+        client.clone(),
+        "postgresql-replica-pv-claim",
+        &namespace,
+        5u32,
+        "postgresql-replica",
+    )
+    .await;
+    let _d = crate::replica::replica_deploy(
+        client.clone(),
+        "postgresql-replica",
+        "postgresql",
+        &namespace,
+        "replica1",
+    )
+    .await;
+    let _s = services::service_deploy(client.clone(), "postgresql-replica", &namespace).await;
+}
+
+/// Removes the replica database components.
+pub async fn handle_retire_replica() {
+    super::print_header();
+    debug!("replica");
+    let client: Client = k8s::k8s_client().await;
+    let namespace = "default".to_owned();
+
+    let _s = services::service_undeploy(client.clone(), "postgresql-replica", &namespace).await;
+    let _d =
+        crate::replica::replica_undeploy(client.clone(), "postgresql-replica", &namespace).await;
+    let _pvc = persistent::persistent_volume_claim_undeploy(
+        client.clone(),
+        "postgresql-replica-pv-claim",
+        &namespace,
+    )
+    .await;
+    let _pv =
+        persistent::persistent_volume_undeploy(client.clone(), "postgresql-replica-pv-volume")
+            .await;
 }

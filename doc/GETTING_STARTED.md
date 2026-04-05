@@ -38,6 +38,7 @@ We will run `pgopr` using the follow commands
 kind create cluster
 pgopr install
 pgopr provision primary
+pgopr provision replica
 kubectl get services
 kubectl port-forward postgresql-XYZ 5432:5432
 psql -h localhost -p 5432 -U myuser mydb
@@ -48,6 +49,7 @@ using `mypass` as the password.
 To shutdown the operator use
 
 ```
+pgopr retire replica
 pgopr retire primary
 pgopr uninstall
 kind delete cluster

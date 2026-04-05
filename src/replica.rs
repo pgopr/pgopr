@@ -5,7 +5,7 @@
  *   PUBLIC LICENSE ("AGREEMENT"). ANY USE, REPRODUCTION OR DISTRIBUTION
  *   OF THE PROGRAM CONSTITUTES RECIPIENT'S ACCEPTANCE OF THIS AGREEMENT.
  */
-const PRIMARY_IMAGE: &str = "pgsql18-primary-rocky10";
+const REPLICA_IMAGE: &str = "pgsql18-replica-rocky10";
 
 use k8s_openapi::{
     api::{
@@ -25,7 +25,7 @@ use log::{info, trace};
 use std::collections::BTreeMap;
 use std::fs;
 
-/// Creates a primary deployment
+/// Creates a replica deployment
 ///
 /// # Arguments
 /// - `client` - A Kubernetes client to create the deployment with
@@ -33,13 +33,15 @@ use std::fs;
 /// - `namespace` - Namespace to create the Kubernetes Deployment in
 ///
 /// Note: It is assumed the resource does not already exists for simplicity. Returns an `Error` if it does
-pub async fn primary_deploy(
+pub async fn replica_deploy(
     client: Client,
     name: &str,
+    primary_name: &str,
     namespace: &str,
+    slot_name: &str,
 ) -> Result<Deployment, Error> {
     // Definition of the deployment
-    let deployment: Deployment = primary_create(name, namespace);
+    let deployment: Deployment = replica_create(name, primary_name, namespace, slot_name);
     trace!("d: {:?}", deployment);
 
     // Create the deployment defined above
@@ -49,14 +51,14 @@ pub async fn primary_deploy(
         .await
     {
         Ok(o) => {
-            info!("Created Primary");
+            info!("Created Replica");
             Ok(o)
         }
         Err(e) => Err(e),
     }
 }
 
-/// Deletes an existing primary deployment.
+/// Deletes an existing replica deployment.
 ///
 /// # Arguments:
 /// - `client` - A Kubernetes client to delete the Deployment with
@@ -64,11 +66,11 @@ pub async fn primary_deploy(
 /// - `namespace` - Namespace the existing deployment resides in
 ///
 /// Note: It is assumed the deployment exists for simplicity. Otherwise returns an Error.
-pub async fn primary_undeploy(client: Client, name: &str, namespace: &str) -> Result<(), Error> {
+pub async fn replica_undeploy(client: Client, name: &str, namespace: &str) -> Result<(), Error> {
     let api: Api<Deployment> = Api::namespaced(client, namespace);
     match api.delete(name, &DeleteParams::default()).await {
         Ok(_) => {
-            info!("Deleted Primary");
+            info!("Deleted Replica");
         }
 
         Err(e) => return Err(e),
@@ -76,14 +78,19 @@ pub async fn primary_undeploy(client: Client, name: &str, namespace: &str) -> Re
     Ok(())
 }
 
-/// Primary: Generate
-pub fn primary_generate() {
-    let data = serde_yaml::to_string(&primary_create("postgresql", "default"))
-        .expect("Can't serialize pgopr-primary.yaml");
-    fs::write("pgopr-primary.yaml", data).expect("Unable to write file: pgopr-primary.yaml");
+/// Replica: Generate
+pub fn replica_generate() {
+    let data = serde_yaml::to_string(&replica_create(
+        "postgresql-replica",
+        "postgresql",
+        "default",
+        "replica1",
+    ))
+    .expect("Can't serialize pgopr-replica.yaml");
+    fs::write("pgopr-replica.yaml", data).expect("Unable to write file: pgopr-replica.yaml");
 }
 
-fn primary_create(name: &str, namespace: &str) -> Deployment {
+fn replica_create(name: &str, primary_name: &str, namespace: &str, slot_name: &str) -> Deployment {
     let mut labels: BTreeMap<String, String> = BTreeMap::new();
     labels.insert("app".to_owned(), name.to_owned());
 
@@ -104,7 +111,7 @@ fn primary_create(name: &str, namespace: &str) -> Deployment {
                 spec: Some(PodSpec {
                     containers: vec![Container {
                         name: name.to_owned(),
-                        image: Some(PRIMARY_IMAGE.to_string()),
+                        image: Some(REPLICA_IMAGE.to_string()),
                         image_pull_policy: Some("IfNotPresent".to_string()),
                         ports: Some(vec![ContainerPort {
                             container_port: 5432,
@@ -112,18 +119,8 @@ fn primary_create(name: &str, namespace: &str) -> Deployment {
                         }]),
                         env: Some(vec![
                             EnvVar {
-                                name: "PG_DATABASE".to_string(),
-                                value: Some("mydb".to_string()),
-                                ..EnvVar::default()
-                            },
-                            EnvVar {
-                                name: "PG_USER_NAME".to_string(),
-                                value: Some("myuser".to_string()),
-                                ..EnvVar::default()
-                            },
-                            EnvVar {
-                                name: "PG_USER_PASSWORD".to_string(),
-                                value: Some("mypass".to_string()),
+                                name: "PG_PRIMARY".to_string(),
+                                value: Some(primary_name.to_string()),
                                 ..EnvVar::default()
                             },
                             EnvVar {
@@ -137,35 +134,20 @@ fn primary_create(name: &str, namespace: &str) -> Deployment {
                                 ..EnvVar::default()
                             },
                             EnvVar {
-                                name: "PG_BACKUP_NAME".to_string(),
-                                value: Some("backup_user".to_string()),
-                                ..EnvVar::default()
-                            },
-                            EnvVar {
-                                name: "PG_BACKUP_PASSWORD".to_string(),
-                                value: Some("backup_pass".to_string()),
-                                ..EnvVar::default()
-                            },
-                            EnvVar {
-                                name: "PG_BACKUP_SLOT".to_string(),
-                                value: Some("backup".to_string()),
-                                ..EnvVar::default()
-                            },
-                            EnvVar {
-                                name: "PG_NETWORK_MASK".to_string(),
-                                value: Some("all".to_string()),
+                                name: "PG_SLOT_NAME".to_string(),
+                                value: Some(slot_name.to_string()),
                                 ..EnvVar::default()
                             },
                         ]),
                         volume_mounts: Some(vec![VolumeMount {
-                            name: "mydb".to_string(),
+                            name: "mydb-replica".to_string(),
                             mount_path: "/pgdata".to_string(),
                             ..VolumeMount::default()
                         }]),
                         ..Container::default()
                     }],
                     volumes: Some(vec![Volume {
-                        name: "mydb".to_string(),
+                        name: "mydb-replica".to_string(),
                         persistent_volume_claim: Some(PersistentVolumeClaimVolumeSource {
                             claim_name: format!("{}-pv-claim", name),
                             ..PersistentVolumeClaimVolumeSource::default()

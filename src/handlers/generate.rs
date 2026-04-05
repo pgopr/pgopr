@@ -14,7 +14,7 @@ use clap::ArgMatches;
 /// # Arguments:
 /// - `sub_matches` - The arguments passed to the generate subcommand.
 pub fn handle_generate(sub_matches: &ArgMatches) {
-    match *sub_matches.get_one::<&str>("type").unwrap() {
+    match sub_matches.get_one::<String>("type").unwrap().as_str() {
         "crd" => {
             crd::crd_generate();
         }
@@ -26,6 +26,9 @@ pub fn handle_generate(sub_matches: &ArgMatches) {
         }
         "primary" => {
             primary::primary_generate();
+        }
+        "replica" => {
+            crate::replica::replica_generate();
         }
         name => {
             unreachable!("Unsupported type `{}`", name)

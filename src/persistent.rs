@@ -32,9 +32,11 @@ pub async fn persistent_volume_deploy(
     client: Client,
     name: &str,
     storage: u32,
+    label_app: &str,
+    host_path: &str,
 ) -> Result<PersistentVolume, Error> {
     // Definition of the persistent volume
-    let pv: PersistentVolume = pv_create(name, storage);
+    let pv: PersistentVolume = pv_create(name, storage, label_app, host_path);
     trace!("pv: {:?}", pv);
 
     // Create the persistent volume defined above
@@ -82,9 +84,10 @@ pub async fn persistent_volume_claim_deploy(
     name: &str,
     namespace: &str,
     storage: u32,
+    label_app: &str,
 ) -> Result<PersistentVolumeClaim, Error> {
     // Definition of the persistent volume claim
-    let pvc: PersistentVolumeClaim = pvc_create(name, namespace, storage);
+    let pvc: PersistentVolumeClaim = pvc_create(name, namespace, storage, label_app);
     trace!("pvc: {:?}", pvc);
 
     // Create the persistent volume claim defined above
@@ -125,18 +128,28 @@ pub async fn persistent_volume_claim_undeploy(
 
 /// Persistent: Generate
 pub fn persistent_generate() {
-    let pv = serde_yaml::to_string(&pv_create("postgresql-pv-volume", 5u32))
-        .expect("Can't serialize pgopr-pv.yaml");
+    let pv = serde_yaml::to_string(&pv_create(
+        "postgresql-pv-volume",
+        5u32,
+        "postgresql",
+        "/tmp/kind",
+    ))
+    .expect("Can't serialize pgopr-pv.yaml");
     fs::write("pgopr-pv.yaml", pv).expect("Unable to write file: pgopr-pv.yaml");
 
-    let pvc = serde_yaml::to_string(&pvc_create("postgresql-pv-claim", "default", 5u32))
-        .expect("Can't serialize pgopr-pvc.yaml");
+    let pvc = serde_yaml::to_string(&pvc_create(
+        "postgresql-pv-claim",
+        "default",
+        5u32,
+        "postgresql",
+    ))
+    .expect("Can't serialize pgopr-pvc.yaml");
     fs::write("pgopr-pvc.yaml", pvc).expect("Unable to write file: pgopr-pvc.yaml");
 }
 
-fn pv_create(name: &str, storage: u32) -> PersistentVolume {
+fn pv_create(name: &str, storage: u32, label_app: &str, host_path: &str) -> PersistentVolume {
     let mut labels: BTreeMap<String, String> = BTreeMap::new();
-    labels.insert("app".to_owned(), "postgresql".to_owned());
+    labels.insert("app".to_owned(), label_app.to_owned());
     labels.insert("type".to_owned(), "local".to_owned());
 
     let mut size: String = storage.to_string().to_owned();
@@ -157,7 +170,7 @@ fn pv_create(name: &str, storage: u32) -> PersistentVolume {
             capacity: Some(cap.clone()),
             access_modes: Some(vec!["ReadWriteMany".to_owned()]),
             host_path: Some(HostPathVolumeSource {
-                path: "/tmp/kind".to_owned(),
+                path: host_path.to_owned(),
                 ..HostPathVolumeSource::default()
             }),
             ..PersistentVolumeSpec::default()
@@ -168,9 +181,9 @@ fn pv_create(name: &str, storage: u32) -> PersistentVolume {
     pv
 }
 
-fn pvc_create(name: &str, namespace: &str, storage: u32) -> PersistentVolumeClaim {
+fn pvc_create(name: &str, namespace: &str, storage: u32, label_app: &str) -> PersistentVolumeClaim {
     let mut labels: BTreeMap<String, String> = BTreeMap::new();
-    labels.insert("app".to_owned(), "postgresql".to_owned());
+    labels.insert("app".to_owned(), label_app.to_owned());
 
     let mut size: String = storage.to_string().to_owned();
     size.push_str("Gi");
