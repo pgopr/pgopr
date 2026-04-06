@@ -6,7 +6,7 @@
  *   OF THE PROGRAM CONSTITUTES RECIPIENT'S ACCEPTANCE OF THIS AGREEMENT.
  */
 
-use crate::{crd, persistent, primary, services};
+use crate::{crd, persistent, pgexporter, primary, services};
 use clap::ArgMatches;
 
 /// Handles the 'generate' subcommand logic for various resource types.
@@ -29,6 +29,9 @@ pub fn handle_generate(sub_matches: &ArgMatches) {
         }
         "replica" => {
             crate::replica::replica_generate();
+        }
+        "pgexporter" => {
+            pgexporter::pgexporter_generate();
         }
         name => {
             unreachable!("Unsupported type `{}`", name)
