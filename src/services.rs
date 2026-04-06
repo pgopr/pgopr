@@ -22,9 +22,14 @@ use std::fs;
 /// - `namespace` - The namespace
 ///
 /// Note: It is assumed the service does not already exists for simplicity. Returns an `Error` if it does.
-pub async fn service_deploy(client: Client, name: &str, namespace: &str) -> Result<Service, Error> {
+pub async fn service_deploy(
+    client: Client,
+    name: &str,
+    namespace: &str,
+    port: i32,
+) -> Result<Service, Error> {
     // Definition of the service
-    let s: Service = service_create(name, namespace);
+    let s: Service = service_create(name, namespace, port);
     trace!("{:#?}", s);
 
     // Create the deployment defined above
@@ -61,12 +66,12 @@ pub async fn service_undeploy(client: Client, name: &str, namespace: &str) -> Re
 
 /// Service: Generate
 pub fn service_generate() {
-    let data = serde_yaml::to_string(&service_create("postgresql", "default"))
+    let data = serde_yaml::to_string(&service_create("postgresql", "default", 5432))
         .expect("Can't serialize pgopr-service.yaml");
     fs::write("pgopr-service.yaml", data).expect("Unable to write file: pgopr-service.yaml");
 }
 
-fn service_create(name: &str, namespace: &str) -> Service {
+fn service_create(name: &str, namespace: &str, port: i32) -> Service {
     let mut labels: BTreeMap<String, String> = BTreeMap::new();
     labels.insert("app".to_owned(), name.to_owned());
 
@@ -80,7 +85,7 @@ fn service_create(name: &str, namespace: &str) -> Service {
         spec: Some(ServiceSpec {
             type_: Some("NodePort".to_owned()),
             ports: Some(vec![ServicePort {
-                port: 5432,
+                port,
                 ..ServicePort::default()
             }]),
             selector: Some(labels.clone()),

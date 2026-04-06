@@ -5,7 +5,7 @@
  *   PUBLIC LICENSE ("AGREEMENT"). ANY USE, REPRODUCTION OR DISTRIBUTION
  *   OF THE PROGRAM CONSTITUTES RECIPIENT'S ACCEPTANCE OF THIS AGREEMENT.
  */
-use crate::{crd, k8s, persistent, primary, services};
+use crate::{crd, k8s, persistent, pgexporter, primary, services};
 use kube::Client;
 use log::debug;
 
@@ -47,7 +47,7 @@ pub async fn handle_provision_primary() {
     )
     .await;
     let _d = primary::primary_deploy(client.clone(), "postgresql", &namespace).await;
-    let _s = services::service_deploy(client.clone(), "postgresql", &namespace).await;
+    let _s = services::service_deploy(client.clone(), "postgresql", &namespace, 5432).await;
 }
 
 /// Removes the primary database components.
@@ -99,7 +99,37 @@ pub async fn handle_provision_replica() {
         "replica1",
     )
     .await;
-    let _s = services::service_deploy(client.clone(), "postgresql-replica", &namespace).await;
+    let _s = services::service_deploy(client.clone(), "postgresql-replica", &namespace, 5432).await;
+}
+
+/// Provisions pgexporter (Deployment, Service).
+pub async fn handle_provision_pgexporter() {
+    super::print_header();
+    debug!("pgexporter");
+    let client: Client = k8s::k8s_client().await;
+    let namespace = "default".to_owned();
+
+    let _d = pgexporter::pgexporter_deploy(
+        client.clone(),
+        "postgresql-pgexporter",
+        "postgresql",
+        &namespace,
+    )
+    .await;
+    let _s =
+        services::service_deploy(client.clone(), "postgresql-pgexporter", &namespace, 5002).await;
+}
+
+/// Removes pgexporter components.
+pub async fn handle_retire_pgexporter() {
+    super::print_header();
+    debug!("pgexporter");
+    let client: Client = k8s::k8s_client().await;
+    let namespace = "default".to_owned();
+
+    let _s = services::service_undeploy(client.clone(), "postgresql-pgexporter", &namespace).await;
+    let _d =
+        pgexporter::pgexporter_undeploy(client.clone(), "postgresql-pgexporter", &namespace).await;
 }
 
 /// Removes the replica database components.

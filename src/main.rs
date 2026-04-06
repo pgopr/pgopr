@@ -23,6 +23,7 @@ mod finalizer;
 pub mod handlers;
 mod k8s;
 mod persistent;
+mod pgexporter;
 mod primary;
 mod replica;
 mod services;
@@ -93,6 +94,11 @@ fn cli() -> Command {
                     Command::new("replica")
                         .about("Provision a replica instance")
                         .display_order(2),
+                )
+                .subcommand(
+                    Command::new("pgexporter")
+                        .about("Provision a pgexporter instance")
+                        .display_order(3),
                 ),
         )
         .subcommand(
@@ -109,6 +115,11 @@ fn cli() -> Command {
                     Command::new("replica")
                         .about("Retire a replica instance")
                         .display_order(2),
+                )
+                .subcommand(
+                    Command::new("pgexporter")
+                        .about("Retire a pgexporter instance")
+                        .display_order(3),
                 ),
         )
         .subcommand(
@@ -138,7 +149,14 @@ fn cli() -> Command {
                         .short('t')
                         .long("type")
                         .required(true)
-                        .value_parser(vec!["crd", "service", "persistent", "primary", "replica"])
+                        .value_parser(vec![
+                            "crd",
+                            "service",
+                            "persistent",
+                            "primary",
+                            "replica",
+                            "pgexporter",
+                        ])
                         .help("Generate YAML resources"),
                 ),
         )
@@ -187,6 +205,7 @@ async fn main() {
             match name {
                 "primary" => handlers::cluster::handle_provision_primary().await,
                 "replica" => handlers::cluster::handle_provision_replica().await,
+                "pgexporter" => handlers::cluster::handle_provision_pgexporter().await,
                 name => unreachable!("Unsupported subcommand `{}`", name),
             }
         }
@@ -196,6 +215,7 @@ async fn main() {
             match name {
                 "primary" => handlers::cluster::handle_retire_primary().await,
                 "replica" => handlers::cluster::handle_retire_replica().await,
+                "pgexporter" => handlers::cluster::handle_retire_pgexporter().await,
                 name => unreachable!("Unsupported subcommand `{}`", name),
             }
         }
