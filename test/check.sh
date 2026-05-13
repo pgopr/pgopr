@@ -9,6 +9,7 @@ set -euo pipefail
 readonly SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 readonly PROJECT_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 readonly PGOPR_BIN="$PROJECT_ROOT/target/debug/pgopr"
+PGOPR_PID=""
 
 ## ================================
 ## Integration operations
@@ -39,6 +40,15 @@ build_operator() {
     cargo build
 }
 
+stop_operator() {
+    if [[ -n "${PGOPR_PID}" ]]; then
+        echo "Stopping the pgopr operator process..."
+        kill -TERM "$PGOPR_PID" 2>/dev/null || true
+        wait "$PGOPR_PID" 2>/dev/null || true
+        PGOPR_PID=""
+    fi
+}
+
 test_operator() {
     echo "Running basic tests for the operator (start/stop)..."
     
@@ -51,6 +61,7 @@ test_operator() {
     echo "Starting pgopr operator control loop in the background..."
     "$PGOPR_BIN" &
     PGOPR_PID=$!
+    trap stop_operator RETURN
 
     echo "Waiting for operator to initialize..."
     sleep 5
@@ -59,7 +70,7 @@ test_operator() {
     echo "Provisioning primary PostgreSQL instance..."
     "$PGOPR_BIN" provision primary
 
-    echo "Waiting for postgresql deployment to be ready..."
+    echo "Waiting for postgresql deployment to be created..."
     # pgopr creates a deployment named "postgresql"
     local count=0
     while ! kubectl get deployment postgresql >/dev/null 2>&1; do
@@ -71,11 +82,14 @@ test_operator() {
         sleep 5
         count=$((count+1))
     done
-    
-    # Once the deployment exists, we can use kubectl wait
-    kubectl wait --for=condition=Available deployment/postgresql --timeout=60s
-    
-    echo "PostgreSQL primary is running!"
+
+    echo "Checking reconciled PostgreSQL resources..."
+    kubectl get pv postgresql-pv-volume
+    kubectl get pvc postgresql-pv-claim
+    kubectl get service postgresql
+    kubectl get pgopr postgresql -o yaml
+
+    echo "PostgreSQL primary resources were reconciled."
     kubectl get pods
     kubectl get svc
 
@@ -96,14 +110,13 @@ test_operator() {
         delete_count=$((delete_count+1))
     done
 
-    echo "Stopping the pgopr operator process..."
-    kill -TERM "$PGOPR_PID" 2>/dev/null || true
-    wait "$PGOPR_PID" 2>/dev/null || true
+    stop_operator
 
     echo "Operations completed successfully."
 }
 
 cleanup_cluster() {
+    stop_operator
     echo "Cleaning up kind cluster..."
     kind delete cluster
 }

@@ -17,81 +17,25 @@ use k8s_openapi::{
     },
     apimachinery::pkg::apis::meta::v1::LabelSelector,
 };
-use kube::{
-    Api, Client, Error,
-    api::{DeleteParams, ObjectMeta, PostParams},
-};
-use log::{info, trace};
+use kube::api::ObjectMeta;
 use std::collections::BTreeMap;
-use std::fs;
 
-/// Creates a primary deployment
+/// Builds a primary deployment object
 ///
 /// # Arguments
-/// - `client` - A Kubernetes client to create the deployment with
-/// - `name` - Name of the deployment to be created
-/// - `namespace` - Namespace to create the Kubernetes Deployment in
-///
-/// Note: It is assumed the resource does not already exists for simplicity. Returns an `Error` if it does
-pub async fn primary_deploy(
-    client: Client,
-    name: &str,
-    namespace: &str,
-) -> Result<Deployment, Error> {
-    // Definition of the deployment
-    let deployment: Deployment = primary_create(name, namespace);
-    trace!("d: {:?}", deployment);
-
-    // Create the deployment defined above
-    let deployment_api: Api<Deployment> = Api::namespaced(client, namespace);
-    match deployment_api
-        .create(&PostParams::default(), &deployment)
-        .await
-    {
-        Ok(o) => {
-            info!("Created Primary");
-            Ok(o)
-        }
-        Err(e) => Err(e),
-    }
-}
-
-/// Deletes an existing primary deployment.
-///
-/// # Arguments:
-/// - `client` - A Kubernetes client to delete the Deployment with
-/// - `name` - Name of the deployment to delete
-/// - `namespace` - Namespace the existing deployment resides in
-///
-/// Note: It is assumed the deployment exists for simplicity. Otherwise returns an Error.
-pub async fn primary_undeploy(client: Client, name: &str, namespace: &str) -> Result<(), Error> {
-    let api: Api<Deployment> = Api::namespaced(client, namespace);
-    match api.delete(name, &DeleteParams::default()).await {
-        Ok(_) => {
-            info!("Deleted Primary");
-        }
-
-        Err(e) => return Err(e),
-    }
-    Ok(())
-}
-
-/// Primary: Generate
-pub fn primary_generate() {
-    let data = serde_yaml::to_string(&primary_create("postgresql", "default"))
-        .expect("Can't serialize pgopr-primary.yaml");
-    fs::write("pgopr-primary.yaml", data).expect("Unable to write file: pgopr-primary.yaml");
-}
-
-fn primary_create(name: &str, namespace: &str) -> Deployment {
+/// - `name` - Name of the deployment
+/// - `namespace` - Namespace
+pub fn build(name: &str, namespace: &str) -> Deployment {
     let mut labels: BTreeMap<String, String> = BTreeMap::new();
     labels.insert("app".to_owned(), name.to_owned());
+    labels.insert("role".to_owned(), "primary".to_owned());
 
     // Definition of the deployment
-    let deployment: Deployment = Deployment {
+    Deployment {
         metadata: ObjectMeta {
             name: Some(name.to_owned()),
             namespace: Some(namespace.to_owned()),
+            labels: Some(labels.clone()),
             ..ObjectMeta::default()
         },
         spec: Some(DeploymentSpec {
@@ -182,7 +126,5 @@ fn primary_create(name: &str, namespace: &str) -> Deployment {
             ..DeploymentSpec::default()
         }),
         ..Deployment::default()
-    };
-
-    deployment
+    }
 }

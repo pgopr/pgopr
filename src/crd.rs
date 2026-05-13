@@ -6,10 +6,11 @@
  *   OF THE PROGRAM CONSTITUTES RECIPIENT'S ACCEPTANCE OF THIS AGREEMENT.
  */
 use k8s_openapi::apiextensions_apiserver::pkg::apis::apiextensions::v1::CustomResourceDefinition;
+use k8s_openapi::apimachinery::pkg::apis::meta::v1::Condition;
 use kube::CustomResource;
 use kube::{
     Api, Client, Error,
-    api::{DeleteParams, PostParams},
+    api::{DeleteParams, Patch, PatchParams, PostParams},
     core::crd::CustomResourceExt,
     runtime::wait::{await_condition, conditions},
 };
@@ -24,12 +25,12 @@ pub mod v1 {
     /// The CustomDefinitionResource for the operator
     #[derive(CustomResource, Serialize, Deserialize, Debug, PartialEq, Clone, JsonSchema)]
     #[kube(
-        // apiextensions = "v1",
         group = "pgopr.io",
         version = "v1",
         kind = "pgopr",
         plural = "pgoprs",
         derive = "PartialEq",
+        status = "PgOprStatus",
         namespaced
     )]
     pub struct PgOprSpec {
@@ -37,6 +38,19 @@ pub mod v1 {
         pub storage: u32,
         /// Number of replicas in the star configuration
         pub replicas: Option<u32>,
+    }
+
+    /// The status of the PgOpr resource
+    #[derive(Serialize, Deserialize, Debug, PartialEq, Clone, JsonSchema, Default)]
+    pub struct PgOprStatus {
+        /// Whether the primary is ready
+        pub primary_ready: bool,
+        /// Number of ready replicas
+        pub ready_replicas: u32,
+        /// Current phase (e.g., Pending, Running, Failed)
+        pub phase: String,
+        /// List of conditions for the resource
+        pub conditions: Option<Vec<Condition>>,
     }
 
     /// The general settings
@@ -49,27 +63,34 @@ pub mod v1 {
     }
 }
 
-/// Create the CustomResoureDefinition object
+/// Create or update the CustomResourceDefinition object
 ///
 /// # Arguments
 /// - `client` - The Kubernetes client
-///
-/// Note: It is assumed the resource does not already exists for simplicity. Returns an `Error` if it does.
 pub async fn crd_deploy(client: Client) -> Result<CustomResourceDefinition, Error> {
     let crd: CustomResourceDefinition = v1::pgopr::crd();
     trace!("{:#?}", crd);
 
-    // Create the object
     let crd_api: Api<CustomResourceDefinition> = Api::all(client.clone());
     let result: Result<CustomResourceDefinition, Error> =
-        crd_api.create(&PostParams::default(), &crd).await;
+        match crd_api.create(&PostParams::default(), &crd).await {
+            Ok(crd) => {
+                info!("Created CRD");
+                Ok(crd)
+            }
+            Err(Error::Api(err)) if err.code == 409 => {
+                let patch = Patch::Merge(&crd);
+                let crd = crd_api
+                    .patch("pgoprs.pgopr.io", &PatchParams::default(), &patch)
+                    .await?;
+                info!("Updated CRD");
+                Ok(crd)
+            }
+            Err(err) => Err(err),
+        };
 
     let establish = await_condition(crd_api, "pgoprs.pgopr.io", conditions::is_crd_established());
     let _ = tokio::time::timeout(std::time::Duration::from_secs(10), establish).await;
-
-    if result.is_ok() {
-        info!("Created CRD");
-    }
 
     result
 }

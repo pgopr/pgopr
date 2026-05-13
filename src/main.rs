@@ -7,7 +7,7 @@
  */
 use clap::{Arg, Command, crate_description, crate_name, crate_version, value_parser};
 use clap_complete::{Generator, Shell, generate};
-use kube::{Resource, ResourceExt, client::Client, runtime::controller::Action};
+use kube::{Api, Resource, ResourceExt, client::Client, runtime::controller::Action};
 use log::LevelFilter;
 use log4rs::{
     append::console::{ConsoleAppender, Target},
@@ -18,10 +18,12 @@ use tokio::time::Duration;
 
 use crate::crd::v1::pgopr;
 
+mod cluster;
 pub mod crd;
 mod finalizer;
 pub mod handlers;
 mod k8s;
+mod manager;
 mod persistent;
 mod primary;
 mod replica;
@@ -34,23 +36,9 @@ pub(crate) struct ContextData {
 }
 
 impl ContextData {
-    /// Constructs a new instance of ContextData
-    ///
-    /// # Arguments:
-    /// - `client`: Kubernetes client
     pub fn new(client: Client) -> Self {
         ContextData { client }
     }
-}
-
-/// Action to be taken upon a `pgopr` resource during reconciliation
-enum PgOprAction {
-    /// Create the primary subresources
-    CreatePrimary,
-    /// Delete all primary subresources
-    DeletePrimary,
-    /// This `PgOpr` resource is in desired state and requires no actions to be taken
-    NoOp,
 }
 
 /// Initialize the logging frameworks
@@ -218,80 +206,48 @@ async fn main() {
 ///
 async fn reconcile(pgopr: Arc<pgopr>, context: Arc<ContextData>) -> Result<Action, Error> {
     let client: Client = context.client.clone();
-    let namespace: String = match pgopr.namespace() {
-        None => {
-            return Err(Error::UserInputError(
-                "Expected pgopr resource to be namespaced. Can't deploy to an unknown namespace."
-                    .to_owned(),
-            ));
-        }
+    let cluster = crate::cluster::Cluster::new(client.clone());
+    let namespace = pgopr.namespace().unwrap_or("default".into());
+    let name = pgopr.name_any();
 
-        Some(namespace) => namespace,
-    };
-
-    // Performs action as decided by the `determine_action` function.
-    match determine_action(&pgopr) {
-        PgOprAction::CreatePrimary => {
-            let name = pgopr.name_any();
-            let replicas = pgopr.spec.replicas.unwrap_or(0);
-
-            finalizer::add(client.clone(), &name, &namespace).await?;
-            primary::primary_deploy(client.clone(), &name, &namespace).await?;
-
-            for i in 1..=replicas {
-                let replica_name = format!("{}-replica-{}", name, i);
-                let slot_name = format!("replica{}", i);
-                crate::replica::replica_deploy(
-                    client.clone(),
-                    &replica_name,
-                    &name,
-                    &namespace,
-                    &slot_name,
-                )
-                .await?;
-            }
-
-            Ok(Action::requeue(Duration::from_secs(10)))
-        }
-
-        PgOprAction::DeletePrimary => {
-            let name = pgopr.name_any();
-            let replicas = pgopr.spec.replicas.unwrap_or(0);
-
-            for i in 1..=replicas {
-                let replica_name = format!("{}-replica-{}", name, i);
-                crate::replica::replica_undeploy(client.clone(), &replica_name, &namespace).await?;
-            }
-            primary::primary_undeploy(client.clone(), &name, &namespace).await?;
-            finalizer::delete(client, &name, &namespace).await?;
-
-            Ok(Action::await_change())
-        }
-
-        PgOprAction::NoOp => Ok(Action::requeue(Duration::from_secs(10))),
-    }
-}
-
-/// Determine the action
-///
-/// # Arguments
-/// - `pgopr`: A reference to `pgopr` being reconciled to decide next action upon
-///
-fn determine_action(pgopr: &pgopr) -> PgOprAction {
     if pgopr.meta().deletion_timestamp.is_some() {
-        PgOprAction::DeletePrimary
-    } else if pgopr
+        cluster.cleanup_all(&pgopr).await?;
+        finalizer::delete(client, &name, &namespace).await?;
+        return Ok(Action::await_change());
+    }
+
+    if pgopr
         .meta()
         .finalizers
         .as_ref()
         .is_none_or(|finalizers| finalizers.is_empty())
     {
-        PgOprAction::CreatePrimary
-    } else {
-        PgOprAction::NoOp
+        finalizer::add(client.clone(), &name, &namespace).await?;
     }
-}
 
+    // sync with the cluster manager
+    cluster.sync(pgopr.clone()).await?;
+
+    // get the status
+    let status = cluster.observe(&pgopr).await?;
+
+    // patch the new status
+    let pgopr_api: Api<pgopr> = Api::namespaced(client, &namespace);
+    let ps = kube::api::PatchParams::apply("pgopr-manager");
+    let _ = pgopr_api
+        .patch_status(
+            &pgopr.name_any(),
+            &ps,
+            &kube::api::Patch::Apply(serde_json::json!({
+                "apiVersion": "pgopr.io/v1",
+                "kind": "pgopr",
+                "status": status
+            })),
+        )
+        .await?;
+
+    Ok(Action::requeue(Duration::from_secs(30)))
+}
 /// The on_error callback
 ///
 /// # Arguments

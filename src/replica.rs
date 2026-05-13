@@ -17,88 +17,27 @@ use k8s_openapi::{
     },
     apimachinery::pkg::apis::meta::v1::LabelSelector,
 };
-use kube::{
-    Api, Client, Error,
-    api::{DeleteParams, ObjectMeta, PostParams},
-};
-use log::{info, trace};
+use kube::api::ObjectMeta;
 use std::collections::BTreeMap;
-use std::fs;
 
-/// Creates a replica deployment
+/// Builds a replica deployment object
 ///
 /// # Arguments
-/// - `client` - A Kubernetes client to create the deployment with
-/// - `name` - Name of the deployment to be created
-/// - `namespace` - Namespace to create the Kubernetes Deployment in
-///
-/// Note: It is assumed the resource does not already exists for simplicity. Returns an `Error` if it does
-pub async fn replica_deploy(
-    client: Client,
-    name: &str,
-    primary_name: &str,
-    namespace: &str,
-    slot_name: &str,
-) -> Result<Deployment, Error> {
-    // Definition of the deployment
-    let deployment: Deployment = replica_create(name, primary_name, namespace, slot_name);
-    trace!("d: {:?}", deployment);
-
-    // Create the deployment defined above
-    let deployment_api: Api<Deployment> = Api::namespaced(client, namespace);
-    match deployment_api
-        .create(&PostParams::default(), &deployment)
-        .await
-    {
-        Ok(o) => {
-            info!("Created Replica");
-            Ok(o)
-        }
-        Err(e) => Err(e),
-    }
-}
-
-/// Deletes an existing replica deployment.
-///
-/// # Arguments:
-/// - `client` - A Kubernetes client to delete the Deployment with
-/// - `name` - Name of the deployment to delete
-/// - `namespace` - Namespace the existing deployment resides in
-///
-/// Note: It is assumed the deployment exists for simplicity. Otherwise returns an Error.
-pub async fn replica_undeploy(client: Client, name: &str, namespace: &str) -> Result<(), Error> {
-    let api: Api<Deployment> = Api::namespaced(client, namespace);
-    match api.delete(name, &DeleteParams::default()).await {
-        Ok(_) => {
-            info!("Deleted Replica");
-        }
-
-        Err(e) => return Err(e),
-    }
-    Ok(())
-}
-
-/// Replica: Generate
-pub fn replica_generate() {
-    let data = serde_yaml::to_string(&replica_create(
-        "postgresql-replica",
-        "postgresql",
-        "default",
-        "replica1",
-    ))
-    .expect("Can't serialize pgopr-replica.yaml");
-    fs::write("pgopr-replica.yaml", data).expect("Unable to write file: pgopr-replica.yaml");
-}
-
-fn replica_create(name: &str, primary_name: &str, namespace: &str, slot_name: &str) -> Deployment {
+/// - `name` - Name of the deployment
+/// - `primary_name` - Name of the primary deployment
+/// - `namespace` - Namespace
+/// - `slot_name` - The replication slot name
+pub fn build(name: &str, primary_name: &str, namespace: &str, slot_name: &str) -> Deployment {
     let mut labels: BTreeMap<String, String> = BTreeMap::new();
     labels.insert("app".to_owned(), name.to_owned());
+    labels.insert("role".to_owned(), "replica".to_owned());
 
     // Definition of the deployment
-    let deployment: Deployment = Deployment {
+    Deployment {
         metadata: ObjectMeta {
             name: Some(name.to_owned()),
             namespace: Some(namespace.to_owned()),
+            labels: Some(labels.clone()),
             ..ObjectMeta::default()
         },
         spec: Some(DeploymentSpec {
@@ -164,7 +103,5 @@ fn replica_create(name: &str, primary_name: &str, namespace: &str, slot_name: &s
             ..DeploymentSpec::default()
         }),
         ..Deployment::default()
-    };
-
-    deployment
+    }
 }

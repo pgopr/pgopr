@@ -6,8 +6,9 @@
  *   OF THE PROGRAM CONSTITUTES RECIPIENT'S ACCEPTANCE OF THIS AGREEMENT.
  */
 
-use crate::{crd, persistent, primary, services};
+use crate::{crd, persistent, primary, replica, services};
 use clap::ArgMatches;
+use std::fs;
 
 /// Handles the 'generate' subcommand logic for various resource types.
 ///
@@ -19,16 +20,31 @@ pub fn handle_generate(sub_matches: &ArgMatches) {
             crd::crd_generate();
         }
         "service" => {
-            services::service_generate();
+            let s = services::build("postgresql", "default");
+            let data = serde_yaml::to_string(&s).expect("Can't serialize pgopr-service.yaml");
+            fs::write("pgopr-service.yaml", data)
+                .expect("Unable to write file: pgopr-service.yaml");
         }
         "persistent" => {
-            persistent::persistent_generate();
+            let pv = persistent::build_pv("postgresql-pv-volume", 5, "postgresql", "/tmp/kind");
+            let data = serde_yaml::to_string(&pv).expect("Can't serialize pgopr-pv.yaml");
+            fs::write("pgopr-pv.yaml", data).expect("Unable to write file: pgopr-pv.yaml");
+
+            let pvc = persistent::build_pvc("postgresql-pv-claim", "default", 5, "postgresql");
+            let data = serde_yaml::to_string(&pvc).expect("Can't serialize pgopr-pvc.yaml");
+            fs::write("pgopr-pvc.yaml", data).expect("Unable to write file: pgopr-pvc.yaml");
         }
         "primary" => {
-            primary::primary_generate();
+            let p = primary::build("postgresql", "default");
+            let data = serde_yaml::to_string(&p).expect("Can't serialize pgopr-primary.yaml");
+            fs::write("pgopr-primary.yaml", data)
+                .expect("Unable to write file: pgopr-primary.yaml");
         }
         "replica" => {
-            crate::replica::replica_generate();
+            let r = replica::build("postgresql-replica", "postgresql", "default", "replica1");
+            let data = serde_yaml::to_string(&r).expect("Can't serialize pgopr-replica.yaml");
+            fs::write("pgopr-replica.yaml", data)
+                .expect("Unable to write file: pgopr-replica.yaml");
         }
         name => {
             unreachable!("Unsupported type `{}`", name)

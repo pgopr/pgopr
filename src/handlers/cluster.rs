@@ -5,120 +5,175 @@
  *   PUBLIC LICENSE ("AGREEMENT"). ANY USE, REPRODUCTION OR DISTRIBUTION
  *   OF THE PROGRAM CONSTITUTES RECIPIENT'S ACCEPTANCE OF THIS AGREEMENT.
  */
-use crate::{crd, k8s, persistent, primary, services};
-use kube::Client;
-use log::debug;
+use crate::crd::v1::PgOprSpec;
+use crate::crd::v1::pgopr;
+use crate::k8s;
+use kube::{
+    Api, Client,
+    api::{DeleteParams, Patch, PatchParams, PostParams},
+};
+use log::error;
+
+const DEFAULT_CLUSTER_NAME: &str = "postgresql";
+const DEFAULT_NAMESPACE: &str = "default";
+const DEFAULT_STORAGE_GI: u32 = 5;
 
 /// Orchestrates the installation of the operator and its CRDs.
 pub async fn handle_install() {
     super::print_header();
     let client: Client = k8s::k8s_client().await;
-    let _ = crd::crd_deploy(client).await;
+    let _ = crate::crd::crd_deploy(client).await;
 }
 
 /// Orchestrates the uninstallation of the operator and its CRDs.
 pub async fn handle_uninstall() {
     super::print_header();
     let client: Client = k8s::k8s_client().await;
-    let _ = crd::crd_undeploy(client).await;
+    let _ = crate::crd::crd_undeploy(client).await;
 }
 
-/// Provisions the primary database components (PV, PVC, Deployment, Service).
+/// Creates the PgOpr resource.
+///
+/// # Arguments
+/// - `client` - Kubernetes client to create the PgOpr resource with.
+/// - `name` - Name of the PgOpr resource to create.
+/// - `namespace` - Namespace where the PgOpr resource resides.
+/// - `replicas` - Desired number of replicas.
+async fn create_cluster(
+    client: Client,
+    name: &str,
+    namespace: &str,
+    replicas: u32,
+) -> Result<pgopr, crate::Error> {
+    let api: Api<pgopr> = Api::namespaced(client, namespace);
+    let mut cluster = pgopr::new(
+        name,
+        PgOprSpec {
+            storage: DEFAULT_STORAGE_GI,
+            replicas: Some(replicas),
+        },
+    );
+    cluster.metadata.namespace = Some(namespace.to_string());
+
+    api.create(&PostParams::default(), &cluster)
+        .await
+        .map_err(crate::Error::from)
+}
+
+/// Updates the replica count on an existing PgOpr resource.
+///
+/// # Arguments
+/// - `client` - Kubernetes client to modify the PgOpr resource with.
+/// - `name` - Name of the PgOpr resource to modify.
+/// - `namespace` - Namespace where the PgOpr resource resides.
+/// - `replicas` - Desired number of replicas.
+async fn patch_replicas(
+    client: Client,
+    name: &str,
+    namespace: &str,
+    replicas: u32,
+) -> Result<pgopr, crate::Error> {
+    let api: Api<pgopr> = Api::namespaced(client, namespace);
+    let patch = serde_json::json!({
+        "spec": {
+            "replicas": replicas
+        }
+    });
+
+    api.patch(name, &PatchParams::default(), &Patch::Merge(&patch))
+        .await
+        .map_err(crate::Error::from)
+}
+
+/// Gets the PgOpr resource.
+///
+/// # Arguments
+/// - `client` - Kubernetes client to get the PgOpr resource with.
+/// - `name` - Name of the PgOpr resource to get.
+/// - `namespace` - Namespace where the PgOpr resource resides.
+async fn get_cluster(client: Client, name: &str, namespace: &str) -> Result<pgopr, crate::Error> {
+    let api: Api<pgopr> = Api::namespaced(client, namespace);
+    api.get(name).await.map_err(crate::Error::from)
+}
+
+/// Provisions the primary database components through a PgOpr resource.
 pub async fn handle_provision_primary() {
     super::print_header();
-    debug!("primary");
     let client: Client = k8s::k8s_client().await;
-    let namespace = "default".to_owned();
-
-    let _pv = persistent::persistent_volume_deploy(
-        client.clone(),
-        "postgresql-pv-volume",
-        5u32,
-        "postgresql",
-        "/tmp/kind",
-    )
-    .await;
-    let _pvc = persistent::persistent_volume_claim_deploy(
-        client.clone(),
-        "postgresql-pv-claim",
-        &namespace,
-        5u32,
-        "postgresql",
-    )
-    .await;
-    let _d = primary::primary_deploy(client.clone(), "postgresql", &namespace).await;
-    let _s = services::service_deploy(client.clone(), "postgresql", &namespace).await;
+    match get_cluster(client.clone(), DEFAULT_CLUSTER_NAME, DEFAULT_NAMESPACE).await {
+        Ok(_) => {}
+        Err(crate::Error::KubeError { source }) => match source {
+            kube::Error::Api(err) if err.code == 404 => {
+                if let Err(err) =
+                    create_cluster(client, DEFAULT_CLUSTER_NAME, DEFAULT_NAMESPACE, 0).await
+                {
+                    error!("Unable to create PgOpr resource: {:?}", err);
+                }
+            }
+            err => error!("Unable to get PgOpr resource: {:?}", err),
+        },
+        Err(err) => error!("Unable to get PgOpr resource: {:?}", err),
+    }
 }
 
-/// Removes the primary database components.
+/// Removes the primary database components through the PgOpr resource.
 pub async fn handle_retire_primary() {
     super::print_header();
-    debug!("primary");
     let client: Client = k8s::k8s_client().await;
-    let namespace = "default".to_owned();
+    let api: Api<pgopr> = Api::namespaced(client, DEFAULT_NAMESPACE);
 
-    let _s = services::service_undeploy(client.clone(), "postgresql", &namespace).await;
-    let _d = primary::primary_undeploy(client.clone(), "postgresql", &namespace).await;
-    let _pvc = persistent::persistent_volume_claim_undeploy(
-        client.clone(),
-        "postgresql-pv-claim",
-        &namespace,
-    )
-    .await;
-    let _pv = persistent::persistent_volume_undeploy(client.clone(), "postgresql-pv-volume").await;
+    match api
+        .delete(DEFAULT_CLUSTER_NAME, &DeleteParams::default())
+        .await
+    {
+        Ok(_) => {}
+        Err(kube::Error::Api(err)) if err.code == 404 => {}
+        Err(err) => {
+            error!("Unable to delete PgOpr resource: {:?}", err);
+        }
+    }
 }
 
-/// Provisions the replica database components (PV, PVC, Deployment, Service).
+/// Provisions the replica database components through a PgOpr resource.
 pub async fn handle_provision_replica() {
     super::print_header();
-    debug!("replica");
     let client: Client = k8s::k8s_client().await;
-    let namespace = "default".to_owned();
-
-    let _pv = persistent::persistent_volume_deploy(
-        client.clone(),
-        "postgresql-replica-pv-volume",
-        5u32,
-        "postgresql-replica",
-        "/tmp/kind-replica",
-    )
-    .await;
-    let _pvc = persistent::persistent_volume_claim_deploy(
-        client.clone(),
-        "postgresql-replica-pv-claim",
-        &namespace,
-        5u32,
-        "postgresql-replica",
-    )
-    .await;
-    let _d = crate::replica::replica_deploy(
-        client.clone(),
-        "postgresql-replica",
-        "postgresql",
-        &namespace,
-        "replica1",
-    )
-    .await;
-    let _s = services::service_deploy(client.clone(), "postgresql-replica", &namespace).await;
+    match get_cluster(client.clone(), DEFAULT_CLUSTER_NAME, DEFAULT_NAMESPACE).await {
+        Ok(current) => {
+            let replicas = current.spec.replicas.unwrap_or(0) + 1;
+            if let Err(err) =
+                patch_replicas(client, DEFAULT_CLUSTER_NAME, DEFAULT_NAMESPACE, replicas).await
+            {
+                error!("Unable to patch PgOpr replicas: {:?}", err);
+            }
+        }
+        Err(crate::Error::KubeError { source }) => match source {
+            kube::Error::Api(err) if err.code == 404 => {
+                if let Err(err) =
+                    create_cluster(client, DEFAULT_CLUSTER_NAME, DEFAULT_NAMESPACE, 1).await
+                {
+                    error!("Unable to create PgOpr resource: {:?}", err);
+                }
+            }
+            err => error!("Unable to get PgOpr resource: {:?}", err),
+        },
+        Err(err) => error!("Unable to get PgOpr resource: {:?}", err),
+    }
 }
 
-/// Removes the replica database components.
+/// Removes the replica database components through a PgOpr resource.
 pub async fn handle_retire_replica() {
     super::print_header();
-    debug!("replica");
     let client: Client = k8s::k8s_client().await;
-    let namespace = "default".to_owned();
-
-    let _s = services::service_undeploy(client.clone(), "postgresql-replica", &namespace).await;
-    let _d =
-        crate::replica::replica_undeploy(client.clone(), "postgresql-replica", &namespace).await;
-    let _pvc = persistent::persistent_volume_claim_undeploy(
-        client.clone(),
-        "postgresql-replica-pv-claim",
-        &namespace,
-    )
-    .await;
-    let _pv =
-        persistent::persistent_volume_undeploy(client.clone(), "postgresql-replica-pv-volume")
-            .await;
+    match get_cluster(client.clone(), DEFAULT_CLUSTER_NAME, DEFAULT_NAMESPACE).await {
+        Ok(current) => {
+            let replicas = current.spec.replicas.unwrap_or(0).saturating_sub(1);
+            if let Err(err) =
+                patch_replicas(client, DEFAULT_CLUSTER_NAME, DEFAULT_NAMESPACE, replicas).await
+            {
+                error!("Unable to patch PgOpr replicas: {:?}", err);
+            }
+        }
+        Err(err) => error!("Unable to get PgOpr resource: {:?}", err),
+    }
 }
