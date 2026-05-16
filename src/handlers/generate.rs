@@ -26,7 +26,13 @@ pub fn handle_generate(sub_matches: &ArgMatches) {
                 .expect("Unable to write file: pgopr-service.yaml");
         }
         "persistent" => {
-            let pv = persistent::build_pv("postgresql-pv-volume", 5, "postgresql", "/tmp/kind");
+            let pv = persistent::build_pv(
+                "postgresql-pv-volume",
+                5,
+                "postgresql",
+                "/tmp/kind",
+                "postgresql",
+            );
             let data = serde_yaml::to_string(&pv).expect("Can't serialize pgopr-pv.yaml");
             fs::write("pgopr-pv.yaml", data).expect("Unable to write file: pgopr-pv.yaml");
 

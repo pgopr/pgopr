@@ -5,6 +5,7 @@
  *   PUBLIC LICENSE ("AGREEMENT"). ANY USE, REPRODUCTION OR DISTRIBUTION
  *   OF THE PROGRAM CONSTITUTES RECIPIENT'S ACCEPTANCE OF THIS AGREEMENT.
  */
+use crate::manager::LABEL_CLUSTER;
 use k8s_openapi::api::core::v1::{HostPathVolumeSource, PersistentVolume, PersistentVolumeSpec};
 use k8s_openapi::{
     api::core::v1::{PersistentVolumeClaim, PersistentVolumeClaimSpec, VolumeResourceRequirements},
@@ -56,10 +57,17 @@ pub fn build_pvc(
 }
 
 /// Builds a persistent volume object for the manual local storage path.
-pub fn build_pv(name: &str, storage: u32, label_app: &str, host_path: &str) -> PersistentVolume {
+pub fn build_pv(
+    name: &str,
+    storage: u32,
+    label_app: &str,
+    host_path: &str,
+    cluster_name: &str,
+) -> PersistentVolume {
     let mut labels: BTreeMap<String, String> = BTreeMap::new();
     labels.insert("app".to_owned(), label_app.to_owned());
     labels.insert("type".to_owned(), "local".to_owned());
+    labels.insert(LABEL_CLUSTER.to_string(), cluster_name.to_string());
 
     let mut size: String = storage.to_string().to_owned();
     size.push_str("Gi");

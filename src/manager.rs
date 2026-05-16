@@ -20,6 +20,7 @@ use std::fmt::Debug;
 /// Global Constants for the Operator
 pub const MANAGER_NAME: &str = "pgopr-manager";
 pub const DEFAULT_NAMESPACE: &str = "default";
+pub const LABEL_CLUSTER: &str = "pgopr.io/cluster";
 
 /// ResourceManager handles Kubernetes API writes for managed resources.
 pub struct ResourceManager {
@@ -126,5 +127,33 @@ impl ResourceManager {
             Err(kube::Error::Api(err)) if err.code == 404 => Ok(()),
             Err(err) => Err(Error::from(err)),
         }
+    }
+
+    /// Deletes all cluster-scoped resources matching a specific label.
+    ///
+    /// # Arguments
+    /// - `label_key` - Key of the label to filter by.
+    /// - `label_value` - Value of the label to filter by.
+    pub async fn delete_cluster_by_label<K>(
+        &self,
+        label_key: &str,
+        label_value: &str,
+    ) -> Result<(), Error>
+    where
+        K: Resource<Scope = ClusterResourceScope> + Clone + Debug + Serialize + DeserializeOwned,
+        K::DynamicType: Default,
+    {
+        let api: Api<K> = Api::all(self.client.clone());
+        let selector = format!("{}={}", label_key, label_value);
+        let lp = kube::api::ListParams::default().labels(&selector);
+
+        let list = api.list(&lp).await?;
+        for resource in list {
+            if let Some(resource_name) = resource.meta().name.as_ref() {
+                self.delete_cluster::<K>(resource_name).await?;
+            }
+        }
+
+        Ok(())
     }
 }

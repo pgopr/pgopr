@@ -165,7 +165,7 @@ impl Cluster {
         let replicas = pgopr.spec.replicas.unwrap_or(0);
 
         let pv_name = format!("{}-pv-volume", name);
-        let pv = persistent::build_pv(&pv_name, storage, &name, "/tmp/kind");
+        let pv = persistent::build_pv(&pv_name, storage, &name, "/tmp/kind", &name);
         self.manager.sync_cluster(pv).await?;
 
         let pvc_name = format!("{}-pv-claim", name);
@@ -184,8 +184,13 @@ impl Cluster {
 
             let replica_pv_name = format!("{}-pv-volume", replica_name);
             let replica_host_path = format!("/tmp/kind-replica-{}", i);
-            let replica_pv =
-                persistent::build_pv(&replica_pv_name, storage, &replica_name, &replica_host_path);
+            let replica_pv = persistent::build_pv(
+                &replica_pv_name,
+                storage,
+                &replica_name,
+                &replica_host_path,
+                &name,
+            );
             self.manager.sync_cluster(replica_pv).await?;
 
             let replica_pvc_name = format!("{}-pv-claim", replica_name);
@@ -251,8 +256,10 @@ impl Cluster {
         self.manager
             .delete::<PersistentVolumeClaim>(&format!("{}-pv-claim", name), &namespace)
             .await?;
+
+        // Cluster-scoped PV discovery and cleanup
         self.manager
-            .delete_cluster::<PersistentVolume>(&format!("{}-pv-volume", name))
+            .delete_cluster_by_label::<PersistentVolume>(crate::manager::LABEL_CLUSTER, &name)
             .await?;
 
         Ok(())
