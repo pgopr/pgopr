@@ -43,14 +43,49 @@ pub mod v1 {
     /// The status of the PgOpr resource
     #[derive(Serialize, Deserialize, Debug, PartialEq, Clone, JsonSchema, Default)]
     pub struct PgOprStatus {
-        /// Whether the primary is ready
-        pub primary_ready: bool,
-        /// Number of ready replicas
-        pub ready_replicas: u32,
         /// Current phase (e.g., Pending, Running, Failed)
         pub phase: String,
+        /// Status of the primary deployment
+        pub primary: Option<DeploymentStatus>,
+        /// List of replica deployment statuses
+        #[serde(default)]
+        pub replicas: Vec<DeploymentStatus>,
+        /// List of service statuses
+        #[serde(default)]
+        pub services: Vec<ServiceStatus>,
+        /// List of storage statuses
+        #[serde(default)]
+        pub storage: Vec<StorageStatus>,
         /// List of conditions for the resource
         pub conditions: Option<Vec<Condition>>,
+    }
+
+    /// Status of a Deployment resource
+    #[derive(Serialize, Deserialize, Debug, PartialEq, Clone, JsonSchema)]
+    pub struct DeploymentStatus {
+        pub name: String,
+        pub ready_replicas: u32,
+        pub desired_replicas: u32,
+        pub available: bool,
+        pub reason: Option<String>,
+    }
+
+    /// Status of a Service resource
+    #[derive(Serialize, Deserialize, Debug, PartialEq, Clone, JsonSchema)]
+    pub struct ServiceStatus {
+        pub name: String,
+        #[serde(rename = "type")]
+        pub type_: Option<String>,
+        pub cluster_ip: Option<String>,
+        pub ready: bool,
+    }
+
+    /// Status of a Storage resource (PV or PVC)
+    #[derive(Serialize, Deserialize, Debug, PartialEq, Clone, JsonSchema)]
+    pub struct StorageStatus {
+        pub name: String,
+        pub kind: String,
+        pub bound: bool,
     }
 
     /// The general settings

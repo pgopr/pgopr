@@ -21,6 +21,9 @@ use std::fmt::Debug;
 pub const MANAGER_NAME: &str = "pgopr-manager";
 pub const DEFAULT_NAMESPACE: &str = "default";
 pub const LABEL_CLUSTER: &str = "pgopr.io/cluster";
+pub const API_GROUP: &str = "pgopr.io";
+pub const KIND_PGOPR: &str = "pgopr";
+pub const VERSION_PGOPR: &str = "v1";
 
 /// ResourceManager handles Kubernetes API writes for managed resources.
 pub struct ResourceManager {

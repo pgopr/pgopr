@@ -7,7 +7,7 @@
  */
 use clap::{Arg, Command, crate_description, crate_name, crate_version, value_parser};
 use clap_complete::{Generator, Shell, generate};
-use kube::{Api, Resource, ResourceExt, client::Client, runtime::controller::Action};
+use kube::{Resource, ResourceExt, client::Client, runtime::controller::Action};
 use log::LevelFilter;
 use log4rs::{
     append::console::{ConsoleAppender, Target},
@@ -225,26 +225,8 @@ async fn reconcile(pgopr: Arc<pgopr>, context: Arc<ContextData>) -> Result<Actio
         finalizer::add(client.clone(), &name, &namespace).await?;
     }
 
-    // sync with the cluster manager
-    cluster.sync(pgopr.clone()).await?;
-
-    // get the status
-    let status = cluster.observe(&pgopr).await?;
-
-    // patch the new status
-    let pgopr_api: Api<pgopr> = Api::namespaced(client, &namespace);
-    let ps = kube::api::PatchParams::apply("pgopr-manager");
-    let _ = pgopr_api
-        .patch_status(
-            &pgopr.name_any(),
-            &ps,
-            &kube::api::Patch::Apply(serde_json::json!({
-                "apiVersion": "pgopr.io/v1",
-                "kind": "pgopr",
-                "status": status
-            })),
-        )
-        .await?;
+    // sync with the cluster manager and update status
+    cluster.reconcile_state(pgopr.clone()).await?;
 
     Ok(Action::requeue(Duration::from_secs(30)))
 }
