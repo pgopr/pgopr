@@ -17,6 +17,7 @@ use kube::{
 use log::{info, trace};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
+use std::collections::BTreeMap;
 use std::fs;
 
 pub mod v1 {
@@ -34,10 +35,15 @@ pub mod v1 {
         namespaced
     )]
     pub struct PgOprSpec {
+        pub version: Option<String>,
         /// General settings across all components
         pub storage: u32,
         /// Number of replicas in the star configuration
         pub replicas: Option<u32>,
+        /// CPU/Memory limits. Validated via schemars.
+        pub resources: Option<ResourceRequirements>,
+        /// Postgres paramters. Delivered via versioned ConfigMaps.
+        pub config: Option<BTreeMap<String, String>>,
     }
 
     /// The status of the PgOpr resource
@@ -58,6 +64,12 @@ pub mod v1 {
         pub storage: Vec<StorageStatus>,
         /// List of conditions for the resource
         pub conditions: Option<Vec<Condition>>,
+    }
+
+    #[derive(Serialize, Deserialize, Debug, PartialEq, Clone, JsonSchema)]
+    pub struct ResourceRequirements {
+        pub limits: Option<BTreeMap<String, String>>,
+        pub requests: Option<BTreeMap<String, String>>,
     }
 
     /// Status of a Deployment resource

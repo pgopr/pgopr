@@ -6,6 +6,7 @@
  *   OF THE PROGRAM CONSTITUTES RECIPIENT'S ACCEPTANCE OF THIS AGREEMENT.
  */
 
+use crate::workload::{DeploymentConfig, PG18_PRIMARY_IMAGE, PG18_REPLICA_IMAGE};
 use crate::{crd, persistent, primary, replica, services};
 use clap::ArgMatches;
 use std::fs;
@@ -41,13 +42,33 @@ pub fn handle_generate(sub_matches: &ArgMatches) {
             fs::write("pgopr-pvc.yaml", data).expect("Unable to write file: pgopr-pvc.yaml");
         }
         "primary" => {
-            let p = primary::build("postgresql", "default");
+            let p = primary::build(
+                "postgresql",
+                "default",
+                DeploymentConfig {
+                    image: PG18_PRIMARY_IMAGE,
+                    resources: None,
+                    config_map_name: None,
+                    config_hash: None,
+                },
+            );
             let data = serde_yaml::to_string(&p).expect("Can't serialize pgopr-primary.yaml");
             fs::write("pgopr-primary.yaml", data)
                 .expect("Unable to write file: pgopr-primary.yaml");
         }
         "replica" => {
-            let r = replica::build("postgresql-replica", "postgresql", "default", "replica1");
+            let r = replica::build(
+                "postgresql-replica",
+                "postgresql",
+                "default",
+                "replica1",
+                DeploymentConfig {
+                    image: PG18_REPLICA_IMAGE,
+                    resources: None,
+                    config_map_name: None,
+                    config_hash: None,
+                },
+            );
             let data = serde_yaml::to_string(&r).expect("Can't serialize pgopr-replica.yaml");
             fs::write("pgopr-replica.yaml", data)
                 .expect("Unable to write file: pgopr-replica.yaml");

@@ -87,9 +87,28 @@ test_operator() {
     kubectl get pv postgresql-pv-volume
     kubectl get pvc postgresql-pv-claim
     kubectl get service postgresql
-    kubectl get pgopr postgresql -o yaml
+    
+    echo "Verifying PgOpr status..."
+    # Check for phase and primary status
+    local phase=$(kubectl get pgopr postgresql -o jsonpath='{.status.phase}')
+    if [[ "$phase" != "Running" && "$phase" != "Pending" && "$phase" != "Degraded" ]]; then
+        echo "Unexpected PgOpr phase: $phase"
+        exit 1
+    fi
 
-    echo "PostgreSQL primary resources were reconciled."
+    # Verify that the structured status is present
+    if ! kubectl get pgopr postgresql -o jsonpath='{.status.primary.name}' | grep -q "postgresql"; then
+        echo "Structured status (primary) missing or incorrect."
+        exit 1
+    fi
+
+    if ! kubectl get pgopr postgresql -o jsonpath='{.status.storage[0].name}' | grep -q "postgresql"; then
+        echo "Structured status (storage) missing or incorrect."
+        exit 1
+    fi
+
+    echo "PgOpr status verified."
+    kubectl get pgopr postgresql -o yaml
     kubectl get pods
     kubectl get svc
 

@@ -49,8 +49,11 @@ async fn create_cluster(
     let mut cluster = pgopr::new(
         name,
         PgOprSpec {
+            version: None,
             storage: DEFAULT_STORAGE_GI,
             replicas: Some(replicas),
+            resources: None,
+            config: None,
         },
     );
     cluster.metadata.namespace = Some(namespace.to_string());

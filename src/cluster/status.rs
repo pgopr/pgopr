@@ -34,6 +34,26 @@ const REASON_POD_FAILURE: &str = "PodFailure";
 const REASON_CLUSTER_READY: &str = "ClusterReady";
 const REASON_REPLICAS_NOT_READY: &str = "ReplicasNotReady";
 const REASON_PRIMARY_NOT_READY: &str = "PrimaryNotReady";
+const REASON_INVALID_SPEC: &str = "InvalidSpec";
+
+/// Builds status for a PgOpr resource whose spec cannot be reconciled.
+///
+/// # Arguments
+/// - `pgopr` - The PgOpr resource defining the invalid desired state.
+/// - `message` - The reason the spec cannot be reconciled.
+pub(super) fn invalid_spec(pgopr: &pgopr, message: String) -> PgOprStatus {
+    PgOprStatus {
+        phase: PHASE_FAILED.to_string(),
+        conditions: Some(vec![condition(
+            pgopr,
+            CONDITION_READY,
+            CONDITION_STATUS_FALSE,
+            REASON_INVALID_SPEC,
+            message,
+        )]),
+        ..Default::default()
+    }
+}
 
 /// Observes the current state of all Kubernetes resources belonging to this cluster.
 ///

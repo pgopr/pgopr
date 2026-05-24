@@ -28,6 +28,7 @@ mod persistent;
 mod primary;
 mod replica;
 mod services;
+mod workload;
 
 /// Context injected with each `reconcile` and `on_error` method invocation
 pub(crate) struct ContextData {
@@ -252,4 +253,8 @@ pub enum Error {
     /// Error in user input or pgopr resource definition, typically missing fields.
     #[error("Invalid pgopr CRD: {0}")]
     UserInputError(String),
+
+    /// Error on unsupported PostgreSQL version
+    #[error("Unsupported PostgreSQL version: {0}")]
+    UnsupportedPostgresVersion(String),
 }

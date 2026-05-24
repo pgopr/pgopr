@@ -5,8 +5,9 @@
  *   PUBLIC LICENSE ("AGREEMENT"). ANY USE, REPRODUCTION OR DISTRIBUTION
  *   OF THE PROGRAM CONSTITUTES RECIPIENT'S ACCEPTANCE OF THIS AGREEMENT.
  */
-const PRIMARY_IMAGE: &str = "pgsql18-primary-rocky10";
 
+use crate::workload::{self, DeploymentConfig};
+use k8s_openapi::api::core::v1::ConfigMapVolumeSource;
 use k8s_openapi::{
     api::{
         apps::v1::{Deployment, DeploymentSpec},
@@ -25,10 +26,52 @@ use std::collections::BTreeMap;
 /// # Arguments
 /// - `name` - Name of the deployment
 /// - `namespace` - Namespace
-pub fn build(name: &str, namespace: &str) -> Deployment {
+/// - `config` - Deployment configuration
+pub fn build(name: &str, namespace: &str, config: DeploymentConfig) -> Deployment {
     let mut labels: BTreeMap<String, String> = BTreeMap::new();
     labels.insert("app".to_owned(), name.to_owned());
     labels.insert("role".to_owned(), "primary".to_owned());
+
+    // setup annotations for rolling restarts
+    let mut annotations: BTreeMap<String, String> = BTreeMap::new();
+    if let Some(hash) = config.config_hash {
+        annotations.insert(workload::HASH_CONFIG.to_string(), hash.to_string());
+    }
+
+    let k8s_resources = config.resources.map(workload::map_resources);
+
+    // setup volumes (pvc + optional config map)
+    let mut volumes = vec![Volume {
+        name: workload::DATA_VOLUME.to_string(),
+        persistent_volume_claim: Some(PersistentVolumeClaimVolumeSource {
+            claim_name: format!("{}-pv-claim", name),
+            ..Default::default()
+        }),
+        ..Default::default()
+    }];
+
+    let mut volume_mounts = vec![VolumeMount {
+        name: workload::DATA_VOLUME.to_string(),
+        mount_path: workload::DATA_MOUNT.to_string(),
+        ..Default::default()
+    }];
+
+    if let Some(cm_name) = config.config_map_name {
+        volumes.push(Volume {
+            name: workload::CONFIG_VOLUME.to_string(),
+            config_map: Some(ConfigMapVolumeSource {
+                name: cm_name.to_string(),
+                ..Default::default()
+            }),
+            ..Default::default()
+        });
+        volume_mounts.push(VolumeMount {
+            name: workload::CONFIG_VOLUME.to_string(),
+            mount_path: workload::CONFIG_MOUNT.to_string(),
+            sub_path: Some("postgresql.conf".to_string()),
+            ..Default::default()
+        });
+    }
 
     // Definition of the deployment
     Deployment {
@@ -36,95 +79,92 @@ pub fn build(name: &str, namespace: &str) -> Deployment {
             name: Some(name.to_owned()),
             namespace: Some(namespace.to_owned()),
             labels: Some(labels.clone()),
-            ..ObjectMeta::default()
+            ..Default::default()
         },
         spec: Some(DeploymentSpec {
             replicas: Some(1i32),
             selector: LabelSelector {
-                match_expressions: None,
                 match_labels: Some(labels.clone()),
+                ..Default::default()
             },
             template: PodTemplateSpec {
+                metadata: Some(ObjectMeta {
+                    labels: Some(labels),
+                    annotations: (!annotations.is_empty()).then_some(annotations),
+                    ..Default::default()
+                }),
                 spec: Some(PodSpec {
                     containers: vec![Container {
                         name: name.to_owned(),
-                        image: Some(PRIMARY_IMAGE.to_string()),
+                        image: Some(config.image.to_string()),
                         image_pull_policy: Some("IfNotPresent".to_string()),
+                        resources: k8s_resources,
+                        volume_mounts: Some(volume_mounts),
+                        args: config.config_map_name.map(|_| {
+                            vec![
+                                "-c".into(),
+                                "config_file=/etc/postgresql/postgresql.conf".into(),
+                            ]
+                        }),
                         ports: Some(vec![ContainerPort {
                             container_port: 5432,
-                            ..ContainerPort::default()
+                            ..Default::default()
                         }]),
                         env: Some(vec![
                             EnvVar {
                                 name: "PG_DATABASE".to_string(),
                                 value: Some("mydb".to_string()),
-                                ..EnvVar::default()
+                                ..Default::default()
                             },
                             EnvVar {
                                 name: "PG_USER_NAME".to_string(),
                                 value: Some("myuser".to_string()),
-                                ..EnvVar::default()
+                                ..Default::default()
                             },
                             EnvVar {
                                 name: "PG_USER_PASSWORD".to_string(),
                                 value: Some("mypass".to_string()),
-                                ..EnvVar::default()
+                                ..Default::default()
                             },
                             EnvVar {
                                 name: "PG_REPLICATION_NAME".to_string(),
                                 value: Some("repl_user".to_string()),
-                                ..EnvVar::default()
+                                ..Default::default()
                             },
                             EnvVar {
                                 name: "PG_REPLICATION_PASSWORD".to_string(),
                                 value: Some("repl_pass".to_string()),
-                                ..EnvVar::default()
+                                ..Default::default()
                             },
                             EnvVar {
                                 name: "PG_BACKUP_NAME".to_string(),
                                 value: Some("backup_user".to_string()),
-                                ..EnvVar::default()
+                                ..Default::default()
                             },
                             EnvVar {
                                 name: "PG_BACKUP_PASSWORD".to_string(),
                                 value: Some("backup_pass".to_string()),
-                                ..EnvVar::default()
+                                ..Default::default()
                             },
                             EnvVar {
                                 name: "PG_BACKUP_SLOT".to_string(),
                                 value: Some("backup".to_string()),
-                                ..EnvVar::default()
+                                ..Default::default()
                             },
                             EnvVar {
                                 name: "PG_NETWORK_MASK".to_string(),
                                 value: Some("all".to_string()),
-                                ..EnvVar::default()
+                                ..Default::default()
                             },
                         ]),
-                        volume_mounts: Some(vec![VolumeMount {
-                            name: "mydb".to_string(),
-                            mount_path: "/pgdata".to_string(),
-                            ..VolumeMount::default()
-                        }]),
-                        ..Container::default()
+                        ..Default::default()
                     }],
-                    volumes: Some(vec![Volume {
-                        name: "mydb".to_string(),
-                        persistent_volume_claim: Some(PersistentVolumeClaimVolumeSource {
-                            claim_name: format!("{}-pv-claim", name),
-                            ..PersistentVolumeClaimVolumeSource::default()
-                        }),
-                        ..Volume::default()
-                    }]),
-                    ..PodSpec::default()
-                }),
-                metadata: Some(ObjectMeta {
-                    labels: Some(labels.clone()),
-                    ..ObjectMeta::default()
+                    volumes: Some(volumes),
+                    ..Default::default()
                 }),
             },
-            ..DeploymentSpec::default()
+            ..Default::default()
         }),
-        ..Deployment::default()
+        ..Default::default()
     }
 }

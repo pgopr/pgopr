@@ -7,12 +7,15 @@
  */
 
 mod cleanup;
+mod config;
 mod status;
 mod topology;
 
 use crate::crd::v1::pgopr;
 use crate::manager::{self, ResourceManager};
+use crate::workload::{DeploymentConfig, PG18_PRIMARY_IMAGE, PG18_REPLICA_IMAGE};
 use crate::{Error, persistent, primary, replica, services};
+use config::ConfigResult;
 use kube::{Api, Client};
 use std::sync::Arc;
 use topology::{ClusterMember, ClusterTopology};
@@ -40,9 +43,33 @@ impl Cluster {
     pub async fn reconcile_state(&self, pgopr: Arc<pgopr>) -> Result<(), Error> {
         let topology = ClusterTopology::from_pgopr(&pgopr);
 
-        self.sync_topology(&pgopr, &topology).await?;
+        let version = pgopr.spec.version.as_deref().unwrap_or("18");
+        if version != "18" {
+            let err = Error::UnsupportedPostgresVersion(version.to_string());
+            let status = status::invalid_spec(&pgopr, err.to_string());
+            self.patch_status(&topology, status).await?;
+            return Ok(());
+        }
+
+        let config_info = if let Some(config) = &pgopr.spec.config {
+            Some(config::sync_config(&self.manager, &pgopr, config).await?)
+        } else {
+            None
+        };
+
+        self.sync_topology(&pgopr, &topology, config_info).await?;
 
         let status = status::observe(&self.manager, &topology, &pgopr).await?;
+        self.patch_status(&topology, status).await?;
+
+        Ok(())
+    }
+
+    async fn patch_status(
+        &self,
+        topology: &ClusterTopology,
+        status: crate::crd::v1::PgOprStatus,
+    ) -> Result<(), Error> {
         let pgopr_api: Api<pgopr> =
             Api::namespaced(self.manager.get_client(), topology.namespace());
         let ps = kube::api::PatchParams::apply(manager::MANAGER_NAME);
@@ -59,7 +86,6 @@ impl Cluster {
                 })),
             )
             .await?;
-
         Ok(())
     }
 
@@ -91,12 +117,28 @@ impl Cluster {
         &self,
         pgopr: &Arc<pgopr>,
         topology: &ClusterTopology,
+        config_info: Option<ConfigResult>,
     ) -> Result<(), Error> {
         let primary = topology.primary();
-        self.sync_primary(pgopr, topology, &primary).await?;
+
+        let primary_config = DeploymentConfig {
+            image: PG18_PRIMARY_IMAGE,
+            resources: pgopr.spec.resources.as_ref(),
+            config_map_name: config_info.as_ref().map(|c| c.name.as_str()),
+            config_hash: config_info.as_ref().map(|c| c.hash.as_str()),
+        };
+        self.sync_primary(pgopr, topology, &primary, primary_config)
+            .await?;
 
         for member in topology.replica_members() {
-            self.sync_replica(pgopr, topology, &member).await?;
+            let replica_config = DeploymentConfig {
+                image: PG18_REPLICA_IMAGE,
+                resources: pgopr.spec.resources.as_ref(),
+                config_map_name: config_info.as_ref().map(|c| c.name.as_str()),
+                config_hash: config_info.as_ref().map(|c| c.hash.as_str()),
+            };
+            self.sync_replica(pgopr, topology, &member, replica_config)
+                .await?;
         }
 
         self.cleanup_stale_replicas(topology.name(), topology.namespace(), topology.replicas())
@@ -110,10 +152,11 @@ impl Cluster {
         pgopr: &Arc<pgopr>,
         topology: &ClusterTopology,
         member: &ClusterMember,
+        config: DeploymentConfig<'_>,
     ) -> Result<(), Error> {
         self.sync_storage(pgopr, topology, member).await?;
 
-        let deployment = primary::build(member.name(), topology.namespace());
+        let deployment = primary::build(member.name(), topology.namespace(), config);
         self.manager.sync(pgopr, deployment).await?;
 
         let service = services::build(member.name(), topology.namespace());
@@ -127,6 +170,7 @@ impl Cluster {
         pgopr: &Arc<pgopr>,
         topology: &ClusterTopology,
         member: &ClusterMember,
+        config: DeploymentConfig<'_>,
     ) -> Result<(), Error> {
         self.sync_storage(pgopr, topology, member).await?;
 
@@ -138,6 +182,7 @@ impl Cluster {
             topology.name(),
             topology.namespace(),
             slot_name,
+            config,
         );
         self.manager.sync(pgopr, deployment).await?;
 
