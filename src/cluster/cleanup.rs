@@ -10,7 +10,7 @@ use super::topology::{self, ClusterTopology};
 use crate::Error;
 use crate::manager::{self, ResourceManager};
 use k8s_openapi::api::apps::v1::Deployment;
-use k8s_openapi::api::core::v1::{PersistentVolume, PersistentVolumeClaim, Service};
+use k8s_openapi::api::core::v1::{PersistentVolume, PersistentVolumeClaim, Secret, Service};
 use kube::{Api, ResourceExt, api::ListParams};
 
 /// Removes replica resources that are no longer needed based on the desired replica count.
@@ -63,6 +63,17 @@ pub(super) async fn all(
         .await?;
     manager
         .delete::<PersistentVolumeClaim>(&primary.pvc_name(), topology.namespace())
+        .await?;
+
+    // pgmoneta resources
+    manager
+        .delete::<Deployment>(&topology.pgmoneta_name(), topology.namespace())
+        .await?;
+    manager
+        .delete::<PersistentVolumeClaim>(&topology.pgmoneta_pvc_name(), topology.namespace())
+        .await?;
+    manager
+        .delete::<Secret>(&topology.pgmoneta_secret_name(), topology.namespace())
         .await?;
 
     // Cluster-scoped PV discovery and cleanup

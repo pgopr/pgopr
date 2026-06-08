@@ -5,7 +5,7 @@
  *   PUBLIC LICENSE ("AGREEMENT"). ANY USE, REPRODUCTION OR DISTRIBUTION
  *   OF THE PROGRAM CONSTITUTES RECIPIENT'S ACCEPTANCE OF THIS AGREEMENT.
  */
-use crate::manager::LABEL_CLUSTER;
+use crate::manager::{LABEL_CLUSTER, LABEL_COMPONENT};
 use k8s_openapi::api::core::v1::{HostPathVolumeSource, PersistentVolume, PersistentVolumeSpec};
 use k8s_openapi::{
     api::core::v1::{PersistentVolumeClaim, PersistentVolumeClaimSpec, VolumeResourceRequirements},
@@ -68,6 +68,45 @@ pub fn build_pv(
     labels.insert("app".to_owned(), label_app.to_owned());
     labels.insert("type".to_owned(), "local".to_owned());
     labels.insert(LABEL_CLUSTER.to_string(), cluster_name.to_string());
+
+    let mut size: String = storage.to_string().to_owned();
+    size.push_str("Gi");
+
+    let mut cap: BTreeMap<String, Quantity> = BTreeMap::new();
+    cap.insert("storage".to_owned(), Quantity(size));
+
+    PersistentVolume {
+        metadata: ObjectMeta {
+            name: Some(name.to_owned()),
+            labels: Some(labels),
+            ..ObjectMeta::default()
+        },
+        spec: Some(PersistentVolumeSpec {
+            storage_class_name: Some("manual".to_owned()),
+            capacity: Some(cap),
+            access_modes: Some(vec!["ReadWriteMany".to_owned()]),
+            host_path: Some(HostPathVolumeSource {
+                path: host_path.to_owned(),
+                ..HostPathVolumeSource::default()
+            }),
+            ..PersistentVolumeSpec::default()
+        }),
+        ..PersistentVolume::default()
+    }
+}
+
+/// Build a pv for pgmoneta
+pub fn build_pgmoneta_pv(
+    name: &str,
+    storage: u32,
+    host_path: &str,
+    cluster_name: &str,
+) -> PersistentVolume {
+    let mut labels: BTreeMap<String, String> = BTreeMap::new();
+    labels.insert("app".to_owned(), cluster_name.to_owned() + "-pgmoneta");
+    labels.insert("type".to_owned(), "local".to_owned());
+    labels.insert(LABEL_CLUSTER.to_string(), cluster_name.to_string());
+    labels.insert(LABEL_COMPONENT.to_string(), "pgmoneta".to_string());
 
     let mut size: String = storage.to_string().to_owned();
     size.push_str("Gi");

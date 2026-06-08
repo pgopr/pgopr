@@ -44,6 +44,14 @@ pub mod v1 {
         pub resources: Option<ResourceRequirements>,
         /// Postgres paramters. Delivered via versioned ConfigMaps.
         pub config: Option<BTreeMap<String, String>>,
+        /// pgmoneta backup configuration
+        pub pgmoneta: Option<PgMonetaSpec>,
+    }
+
+    #[derive(Serialize, Deserialize, Debug, PartialEq, Clone, JsonSchema)]
+    pub struct PgMonetaSpec {
+        /// Storage size in GiB. Defaults to 10 if absent.
+        pub storage: Option<u32>,
     }
 
     /// The status of the PgOpr resource
@@ -64,8 +72,18 @@ pub mod v1 {
         pub storage: Vec<StorageStatus>,
         /// List of conditions for the resource
         pub conditions: Option<Vec<Condition>>,
+        /// Status of pgmoneta backup
+        pub pgmoneta: Option<PgMonetaStatus>,
     }
 
+    #[derive(Serialize, Deserialize, Debug, PartialEq, Clone, JsonSchema, Default)]
+    pub struct PgMonetaStatus {
+        pub deployment: Option<DeploymentStatus>,
+        pub storage: Option<StorageStatus>,
+        pub ready: bool,
+        pub reason: Option<String>,
+        pub message: Option<String>,
+    }
     #[derive(Serialize, Deserialize, Debug, PartialEq, Clone, JsonSchema)]
     pub struct ResourceRequirements {
         pub limits: Option<BTreeMap<String, String>>,

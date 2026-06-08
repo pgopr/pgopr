@@ -108,11 +108,59 @@ test_operator() {
     fi
 
     echo "PgOpr status verified."
-    kubectl get pgopr postgresql -o yaml
-    kubectl get pods
-    kubectl get svc
 
-    # 3. Retire the primary instance
+    # 3. Provision pgmoneta
+    echo "Provisioning pgmoneta..."
+    "$PGOPR_BIN" provision pgmoneta
+
+    echo "Waiting for pgmoneta deployment to be created..."
+    local pgmoneta_count=0
+    while ! kubectl get deployment postgresql-pgmoneta >/dev/null 2>&1; do
+        if [ $pgmoneta_count -ge 36 ]; then
+            echo "Timeout waiting for postgresql-pgmoneta deployment."
+            exit 1
+        fi
+        echo "Waiting for pgmoneta deployment..."
+        sleep 5
+        pgmoneta_count=$((pgmoneta_count+1))
+    done
+
+    echo "Checking pgmoneta resources..."
+    kubectl get deployment postgresql-pgmoneta
+    kubectl get pvc postgresql-pgmoneta-pv-claim
+    kubectl get secret postgresql-pgmoneta-secret
+
+    echo "Verifying pgmoneta status..."
+    local pgmoneta_ready=$(kubectl get pgopr postgresql -o jsonpath='{.status.pgmoneta.ready}')
+    if [[ "$pgmoneta_ready" != "true" && "$pgmoneta_ready" != "false" ]]; then
+        echo "Unexpected pgmoneta ready status: $pgmoneta_ready"
+        exit 1
+    fi
+
+    echo "Checking pgmoneta PV labels..."
+    local pv_labels=$(kubectl get pv postgresql-pgmoneta-pv-volume -o jsonpath='{.metadata.labels.pgopr\.io\/component}')
+    if [[ "$pv_labels" != "pgmoneta" ]]; then
+        echo "Missing pgmoneta component label on PV"
+        exit 1
+    fi
+
+    # 4. Retire pgmoneta
+    echo "Retiring pgmoneta..."
+    "$PGOPR_BIN" retire pgmoneta
+
+    echo "Waiting for pgmoneta deployment to be deleted..."
+    local pgmoneta_delete_count=0
+    while kubectl get deployment postgresql-pgmoneta >/dev/null 2>&1; do
+        if [ $pgmoneta_delete_count -ge 24 ]; then
+            echo "Timeout waiting for pgmoneta deployment termination."
+            exit 1
+        fi
+        echo "Waiting for pgmoneta deployment termination..."
+        sleep 5
+        pgmoneta_delete_count=$((pgmoneta_delete_count+1))
+    done
+
+    # 5. Retire the primary instance
     echo "Retiring primary PostgreSQL instance..."
     "$PGOPR_BIN" retire primary
 

@@ -24,6 +24,7 @@ pub const LABEL_CLUSTER: &str = "pgopr.io/cluster";
 pub const API_GROUP: &str = "pgopr.io";
 pub const KIND_PGOPR: &str = "pgopr";
 pub const VERSION_PGOPR: &str = "v1";
+pub const LABEL_COMPONENT: &str = "pgopr.io/component";
 
 /// ResourceManager handles Kubernetes API writes for managed resources.
 pub struct ResourceManager {

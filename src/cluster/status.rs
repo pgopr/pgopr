@@ -8,7 +8,9 @@
 
 use super::topology::ClusterTopology;
 use crate::Error;
-use crate::crd::v1::{DeploymentStatus, PgOprStatus, ServiceStatus, StorageStatus, pgopr};
+use crate::crd::v1::{
+    DeploymentStatus, PgMonetaStatus, PgOprStatus, ServiceStatus, StorageStatus, pgopr,
+};
 use crate::manager::ResourceManager;
 use k8s_openapi::api::apps::v1::Deployment;
 use k8s_openapi::api::core::v1::{PersistentVolume, PersistentVolumeClaim, Pod, Service};
@@ -74,6 +76,7 @@ pub(super) async fn observe(
     observe_deployments(manager, topology, &mut status).await?;
     observe_services(manager, topology, &mut status).await?;
     observe_storage(manager, topology, &mut status).await?;
+    observe_pgmoneta(manager, topology, pgopr, &mut status).await?;
     finalize(pgopr, topology, &mut status);
 
     Ok(status)
@@ -149,6 +152,73 @@ async fn observe_storage(
     for pv in pvs {
         status.storage.push(pv_status(pv));
     }
+
+    Ok(())
+}
+
+async fn observe_pgmoneta(
+    manager: &ResourceManager,
+    topology: &ClusterTopology,
+    pgopr: &pgopr,
+    status: &mut PgOprStatus,
+) -> Result<(), Error> {
+    if pgopr.spec.pgmoneta.is_none() {
+        return Ok(());
+    }
+
+    let deploy_api: Api<Deployment> = Api::namespaced(manager.get_client(), topology.namespace());
+    let pvc_api: Api<PersistentVolumeClaim> =
+        Api::namespaced(manager.get_client(), topology.namespace());
+
+    let deployment_exists = deploy_api.get(&topology.pgmoneta_name()).await.ok();
+    let pvc = pvc_api.get(&topology.pgmoneta_pvc_name()).await.ok();
+
+    let pod_reason = if let Some(ref _d) = deployment_exists {
+        pod_failure_reason(manager, topology.namespace(), &topology.pgmoneta_name()).await?
+    } else {
+        None
+    };
+
+    let deploy_status = deployment_exists
+        .as_ref()
+        .map(|d| deployment_status(&topology.pgmoneta_name(), d, pod_reason));
+
+    let storage_status = pvc.as_ref().map(pvc_status);
+
+    let ready = deploy_status.as_ref().is_some_and(|d| d.available)
+        && storage_status.as_ref().is_some_and(|s| s.bound);
+
+    let (reason, message) = if ready {
+        (None, None)
+    } else if deployment_exists.is_none() {
+        (
+            Some("DeploymentNotFound".to_string()),
+            Some("pgmoneta Deployment does not exist".to_string()),
+        )
+    } else if !deploy_status.as_ref().is_some_and(|d| d.available) {
+        (
+            Some("DeploymentNotReady".to_string()),
+            Some("pgmoneta Deployment exists but is not ready".to_string()),
+        )
+    } else if pvc.is_none() {
+        (
+            Some("StorageNotFound".to_string()),
+            Some("pgmoneta PVC does not exist".to_string()),
+        )
+    } else {
+        (
+            Some("StorageNotBound".to_string()),
+            Some("pgmoneta PVC exists but is not bound".to_string()),
+        )
+    };
+
+    status.pgmoneta = Some(PgMonetaStatus {
+        deployment: deploy_status,
+        storage: storage_status,
+        ready,
+        reason,
+        message,
+    });
 
     Ok(())
 }

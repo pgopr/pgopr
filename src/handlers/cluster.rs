@@ -54,6 +54,7 @@ async fn create_cluster(
             replicas: Some(replicas),
             resources: None,
             config: None,
+            pgmoneta: None,
         },
     );
     cluster.metadata.namespace = Some(namespace.to_string());
@@ -116,6 +117,67 @@ pub async fn handle_provision_primary() {
             err => error!("Unable to get PgOpr resource: {:?}", err),
         },
         Err(err) => error!("Unable to get PgOpr resource: {:?}", err),
+    }
+}
+
+/// Provisions pgmoneta through the PgOpr resource.
+pub async fn handle_provision_pgmoneta() {
+    super::print_header();
+    let client: Client = k8s::k8s_client().await;
+    match get_cluster(client.clone(), DEFAULT_CLUSTER_NAME, DEFAULT_NAMESPACE).await {
+        Ok(_) => {
+            let api: Api<pgopr> = Api::namespaced(client, DEFAULT_NAMESPACE);
+            let patch = serde_json::json!({
+                "spec": {
+                    "pgmoneta": {
+                        "storage": 10
+                    }
+                }
+            });
+            if let Err(err) = api
+                .patch(
+                    DEFAULT_CLUSTER_NAME,
+                    &PatchParams::default(),
+                    &Patch::Merge(&patch),
+                )
+                .await
+            {
+                error!("Unable to patch PgOpr pgmoneta: {:?}", err);
+            }
+        }
+        Err(crate::Error::KubeError { source }) => match source {
+            kube::Error::Api(err) if err.code == 404 => {
+                if let Err(err) =
+                    create_cluster(client, DEFAULT_CLUSTER_NAME, DEFAULT_NAMESPACE, 0).await
+                {
+                    error!("Unable to create PgOpr resource: {:?}", err);
+                }
+            }
+            err => error!("Unable to get PgOpr resource: {:?}", err),
+        },
+        Err(err) => error!("Unable to get PgOpr resource: {:?}", err),
+    }
+}
+
+/// Retires pgmoneta through the PgOpr resource.
+pub async fn handle_retire_pgmoneta() {
+    super::print_header();
+    let client: Client = k8s::k8s_client().await;
+    let api: Api<pgopr> = Api::namespaced(client, DEFAULT_NAMESPACE);
+    let patch = serde_json::json!({
+        "spec": {
+            "pgmoneta": null
+        }
+    });
+    if let Err(err) = api
+        .patch(
+            DEFAULT_CLUSTER_NAME,
+            &PatchParams::default(),
+            &Patch::Merge(&patch),
+        )
+        .await
+    {
+        error!("Unable to patch PgOpr pgmoneta: {:?}", err);
     }
 }
 
