@@ -11,11 +11,13 @@ mod config;
 mod status;
 mod topology;
 
-use crate::crd::v1::pgopr;
+use crate::crd::v1::{PgMonetaSpec, pgopr};
 use crate::manager::{self, ResourceManager};
 use crate::workload::{DeploymentConfig, PG18_PRIMARY_IMAGE, PG18_REPLICA_IMAGE};
-use crate::{Error, persistent, primary, replica, services};
+use crate::{Error, persistent, pgmoneta, primary, replica, services};
 use config::ConfigResult;
+use k8s_openapi::api::apps::v1::Deployment;
+use k8s_openapi::api::core::v1::{PersistentVolume, PersistentVolumeClaim, Secret};
 use kube::{Api, Client};
 use std::sync::Arc;
 use topology::{ClusterMember, ClusterTopology};
@@ -144,6 +146,12 @@ impl Cluster {
         self.cleanup_stale_replicas(topology.name(), topology.namespace(), topology.replicas())
             .await?;
 
+        if let Some(pgmoneta_spec) = &pgopr.spec.pgmoneta {
+            self.sync_pgmoneta(pgopr, topology, pgmoneta_spec).await?;
+        } else {
+            self.cleanup_pgmoneta(topology).await?;
+        }
+
         Ok(())
     }
 
@@ -214,6 +222,67 @@ impl Cluster {
             member.name(),
         );
         self.manager.sync(pgopr, pvc).await?;
+
+        Ok(())
+    }
+
+    async fn sync_pgmoneta(
+        &self,
+        pgopr: &Arc<pgopr>,
+        topology: &ClusterTopology,
+        spec: &PgMonetaSpec,
+    ) -> Result<(), Error> {
+        let storage = spec.storage.unwrap_or(10);
+        let host_path = format!("/tmp/kind-pgmoneta-{}", topology.name());
+
+        let pv = persistent::build_pgmoneta_pv(
+            &topology.pgmoneta_pv_name(),
+            storage,
+            &host_path,
+            topology.name(),
+        );
+        self.manager.sync_cluster(pv).await?;
+
+        let pvc = persistent::build_pvc(
+            &topology.pgmoneta_pvc_name(),
+            topology.namespace(),
+            storage,
+            &topology.pgmoneta_name(),
+        );
+        self.manager.sync(pgopr, pvc).await?;
+
+        let secret = pgmoneta::build_secret(
+            &topology.pgmoneta_secret_name(),
+            topology.namespace(),
+            "backup_pass",
+        );
+        self.manager.sync(pgopr, secret).await?;
+
+        let deployment = pgmoneta::build_deployment(
+            &topology.pgmoneta_name(),
+            topology.namespace(),
+            topology.name(),
+            &topology.pgmoneta_pvc_name(),
+            &topology.pgmoneta_secret_name(),
+        );
+        self.manager.sync(pgopr, deployment).await?;
+
+        Ok(())
+    }
+
+    async fn cleanup_pgmoneta(&self, topology: &ClusterTopology) -> Result<(), Error> {
+        self.manager
+            .delete::<Deployment>(&topology.pgmoneta_name(), topology.namespace())
+            .await?;
+        self.manager
+            .delete::<PersistentVolumeClaim>(&topology.pgmoneta_pvc_name(), topology.namespace())
+            .await?;
+        self.manager
+            .delete::<Secret>(&topology.pgmoneta_secret_name(), topology.namespace())
+            .await?;
+        self.manager
+            .delete_cluster::<PersistentVolume>(&topology.pgmoneta_pv_name())
+            .await?;
 
         Ok(())
     }

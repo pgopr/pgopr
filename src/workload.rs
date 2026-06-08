@@ -17,6 +17,9 @@ pub const DATA_VOLUME: &str = "pgdata";
 pub const DATA_MOUNT: &str = "/pgdata";
 pub const CONFIG_VOLUME: &str = "config";
 pub const CONFIG_MOUNT: &str = "/etc/postgresql/postgresql.conf";
+pub const PGMONETA_IMAGE: &str = "pgmoneta-rocky10";
+pub const PGMONETA_PORT: i32 = 5001;
+pub const PGMONETA_METRICS_PORT: i32 = 9100;
 
 pub struct DeploymentConfig<'a> {
     pub image: &'static str,

@@ -25,6 +25,7 @@ pub mod handlers;
 mod k8s;
 mod manager;
 mod persistent;
+mod pgmoneta;
 mod primary;
 mod replica;
 mod services;
@@ -82,6 +83,11 @@ fn cli() -> Command {
                     Command::new("replica")
                         .about("Provision a replica instance")
                         .display_order(2),
+                )
+                .subcommand(
+                    Command::new("pgmoneta")
+                        .about("Provision a pgmoneta instance")
+                        .display_order(3),
                 ),
         )
         .subcommand(
@@ -98,6 +104,11 @@ fn cli() -> Command {
                     Command::new("replica")
                         .about("Retire a replica instance")
                         .display_order(2),
+                )
+                .subcommand(
+                    Command::new("pgmoneta")
+                        .about("Retire a pgmoneta instance")
+                        .display_order(3),
                 ),
         )
         .subcommand(
@@ -176,6 +187,7 @@ async fn main() {
             match name {
                 "primary" => handlers::cluster::handle_provision_primary().await,
                 "replica" => handlers::cluster::handle_provision_replica().await,
+                "pgmoneta" => handlers::cluster::handle_provision_pgmoneta().await,
                 name => unreachable!("Unsupported subcommand `{}`", name),
             }
         }
@@ -185,6 +197,7 @@ async fn main() {
             match name {
                 "primary" => handlers::cluster::handle_retire_primary().await,
                 "replica" => handlers::cluster::handle_retire_replica().await,
+                "pgmoneta" => handlers::cluster::handle_retire_pgmoneta().await,
                 name => unreachable!("Unsupported subcommand `{}`", name),
             }
         }

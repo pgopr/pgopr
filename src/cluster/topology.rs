@@ -17,6 +17,12 @@ const REPLICA_NAME_SEGMENT: &str = "replica";
 const PV_NAME_SUFFIX: &str = "pv-volume";
 const PVC_NAME_SUFFIX: &str = "pv-claim";
 
+/// pgmoenta is a special resource type that is used to store pgmoneta data.
+const PGMONETA_SUFFIX: &str = "pgmoneta";
+const PGMONETA_PV_NAME_SUFFIX: &str = "pgmoneta-pv-volume";
+const PGMONETA_PVC_NAME_SUFFIX: &str = "pgmoneta-pv-claim";
+const PGMONETA_SECRET_SUFFIX: &str = "pgmoneta-secret";
+
 /// ClusterTopology centralizes names and desired members for a PostgreSQL cluster.
 pub(super) struct ClusterTopology {
     name: String,
@@ -85,6 +91,19 @@ impl ClusterTopology {
 
     pub(super) fn pv_selector(&self) -> String {
         format!("{}={}", manager::LABEL_CLUSTER, self.name)
+    }
+
+    pub fn pgmoneta_name(&self) -> String {
+        format!("{}-{}", self.name, PGMONETA_SUFFIX)
+    }
+    pub fn pgmoneta_pv_name(&self) -> String {
+        format!("{}-{}", self.name, PGMONETA_PV_NAME_SUFFIX)
+    }
+    pub fn pgmoneta_pvc_name(&self) -> String {
+        format!("{}-{}", self.name, PGMONETA_PVC_NAME_SUFFIX)
+    }
+    pub fn pgmoneta_secret_name(&self) -> String {
+        format!("{}-{}", self.name, PGMONETA_SECRET_SUFFIX)
     }
 }
 
