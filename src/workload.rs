@@ -21,6 +21,10 @@ pub const PGMONETA_IMAGE: &str = "pgmoneta-rocky10";
 pub const PGMONETA_PORT: i32 = 5001;
 pub const PGMONETA_METRICS_PORT: i32 = 9100;
 
+pub const PGEXPORTER_IMAGE: &str = "pgexporter-rocky10";
+pub const PGEXPORTER_PORT: i32 = 5002;
+pub const PGEXPORTER_METRICS_PORT: i32 = 9100;
+
 pub struct DeploymentConfig<'a> {
     pub image: &'static str,
     pub resources: Option<&'a ResourceRequirements>,

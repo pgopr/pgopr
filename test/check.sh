@@ -144,7 +144,50 @@ test_operator() {
         exit 1
     fi
 
-    # 4. Retire pgmoneta
+    # 4. Provision pgexporter
+    echo "Provisioning pgexporter..."
+    "$PGOPR_BIN" provision pgexporter
+
+    echo "Waiting for pgexporter deployment to be created..."
+    local pgexporter_count=0
+    while ! kubectl get deployment postgresql-pgexporter >/dev/null 2>&1; do
+        if [ $pgexporter_count -ge 36 ]; then
+            echo "Timeout waiting for postgresql-pgexporter deployment."
+            exit 1
+        fi
+        echo "Waiting for pgexporter deployment..."
+        sleep 5
+        pgexporter_count=$((pgexporter_count+1))
+    done
+
+    echo "Checking pgexporter resources..."
+    kubectl get deployment postgresql-pgexporter
+    kubectl get secret postgresql-pgexporter-secret
+
+    echo "Verifying pgexporter status..."
+    local pgexporter_ready=$(kubectl get pgopr postgresql -o jsonpath='{.status.pgexporter.ready}')
+    if [[ "$pgexporter_ready" != "true" && "$pgexporter_ready" != "false" ]]; then
+        echo "Unexpected pgexporter ready status: $pgexporter_ready"
+        exit 1
+    fi
+
+    # 5. Retire pgexporter
+    echo "Retiring pgexporter..."
+    "$PGOPR_BIN" retire pgexporter
+
+    echo "Waiting for pgexporter deployment to be deleted..."
+    local pgexporter_delete_count=0
+    while kubectl get deployment postgresql-pgexporter >/dev/null 2>&1; do
+        if [ $pgexporter_delete_count -ge 24 ]; then
+            echo "Timeout waiting for pgexporter deployment termination."
+            exit 1
+        fi
+        echo "Waiting for pgexporter deployment termination..."
+        sleep 5
+        pgexporter_delete_count=$((pgexporter_delete_count+1))
+    done
+
+    # 6. Retire pgmoneta
     echo "Retiring pgmoneta..."
     "$PGOPR_BIN" retire pgmoneta
 
@@ -160,7 +203,7 @@ test_operator() {
         pgmoneta_delete_count=$((pgmoneta_delete_count+1))
     done
 
-    # 5. Retire the primary instance
+    # 7. Retire the primary instance
     echo "Retiring primary PostgreSQL instance..."
     "$PGOPR_BIN" retire primary
 

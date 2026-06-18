@@ -23,6 +23,10 @@ const PGMONETA_PV_NAME_SUFFIX: &str = "pgmoneta-pv-volume";
 const PGMONETA_PVC_NAME_SUFFIX: &str = "pgmoneta-pv-claim";
 const PGMONETA_SECRET_SUFFIX: &str = "pgmoneta-secret";
 
+/// pgexporter is a special resource type that is used to store pgexporter data.
+const PGEXPORTER_SUFFIX: &str = "pgexporter";
+const PGEXPORTER_SECRET_SUFFIX: &str = "pgexporter-secret";
+
 /// ClusterTopology centralizes names and desired members for a PostgreSQL cluster.
 pub(super) struct ClusterTopology {
     name: String,
@@ -104,6 +108,13 @@ impl ClusterTopology {
     }
     pub fn pgmoneta_secret_name(&self) -> String {
         format!("{}-{}", self.name, PGMONETA_SECRET_SUFFIX)
+    }
+
+    pub fn pgexporter_name(&self) -> String {
+        format!("{}-{}", self.name, PGEXPORTER_SUFFIX)
+    }
+    pub fn pgexporter_secret_name(&self) -> String {
+        format!("{}-{}", self.name, PGEXPORTER_SECRET_SUFFIX)
     }
 }
 
