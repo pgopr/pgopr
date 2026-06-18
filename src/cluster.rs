@@ -14,7 +14,7 @@ mod topology;
 use crate::crd::v1::{PgMonetaSpec, pgopr};
 use crate::manager::{self, ResourceManager};
 use crate::workload::{DeploymentConfig, PG18_PRIMARY_IMAGE, PG18_REPLICA_IMAGE};
-use crate::{Error, persistent, pgmoneta, primary, replica, services};
+use crate::{Error, persistent, pgexporter, pgmoneta, primary, replica, services};
 use config::ConfigResult;
 use k8s_openapi::api::apps::v1::Deployment;
 use k8s_openapi::api::core::v1::{PersistentVolume, PersistentVolumeClaim, Secret};
@@ -152,6 +152,12 @@ impl Cluster {
             self.cleanup_pgmoneta(topology).await?;
         }
 
+        if pgopr.spec.pgexporter.is_some() {
+            self.sync_pgexporter(pgopr, topology).await?
+        } else {
+            self.cleanup_pgexporter(topology).await?
+        }
+
         Ok(())
     }
 
@@ -282,6 +288,44 @@ impl Cluster {
             .await?;
         self.manager
             .delete_cluster::<PersistentVolume>(&topology.pgmoneta_pv_name())
+            .await?;
+
+        Ok(())
+    }
+    async fn sync_pgexporter(
+        &self,
+        pgopr: &Arc<pgopr>,
+        topology: &ClusterTopology,
+    ) -> Result<(), Error> {
+        let secret = pgexporter::build_secret(
+            &topology.pgexporter_secret_name(),
+            topology.namespace(),
+            "pgexporter_pass",
+        );
+        self.manager.sync(pgopr, secret).await?;
+
+        let deployment = pgexporter::build_deployment(
+            &topology.pgexporter_name(),
+            topology.namespace(),
+            topology.name(),
+            &topology.pgexporter_secret_name(),
+            pgopr
+                .spec
+                .pgexporter
+                .as_ref()
+                .and_then(|s| s.resources.as_ref()),
+        );
+        self.manager.sync(pgopr, deployment).await?;
+
+        Ok(())
+    }
+
+    async fn cleanup_pgexporter(&self, topology: &ClusterTopology) -> Result<(), Error> {
+        self.manager
+            .delete::<Deployment>(&topology.pgexporter_name(), topology.namespace())
+            .await?;
+        self.manager
+            .delete::<Secret>(&topology.pgexporter_secret_name(), topology.namespace())
             .await?;
 
         Ok(())

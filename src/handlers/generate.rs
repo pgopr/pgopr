@@ -73,6 +73,9 @@ pub fn handle_generate(sub_matches: &ArgMatches) {
             fs::write("pgopr-replica.yaml", data)
                 .expect("Unable to write file: pgopr-replica.yaml");
         }
+        "pgexporter" => {
+            crate::pgexporter::pgexporter_generate();
+        }
         name => {
             unreachable!("Unsupported type `{}`", name)
         }

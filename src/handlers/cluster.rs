@@ -55,6 +55,7 @@ async fn create_cluster(
             resources: None,
             config: None,
             pgmoneta: None,
+            pgexporter: None,
         },
     );
     cluster.metadata.namespace = Some(namespace.to_string());
@@ -156,6 +157,64 @@ pub async fn handle_provision_pgmoneta() {
             err => error!("Unable to get PgOpr resource: {:?}", err),
         },
         Err(err) => error!("Unable to get PgOpr resource: {:?}", err),
+    }
+}
+/// Provisions pgexporter through the PgOpr resource.
+pub async fn handle_provision_pgexporter() {
+    super::print_header();
+    let client: Client = k8s::k8s_client().await;
+    match get_cluster(client.clone(), DEFAULT_CLUSTER_NAME, DEFAULT_NAMESPACE).await {
+        Ok(_) => {
+            let api: Api<pgopr> = Api::namespaced(client, DEFAULT_NAMESPACE);
+            let patch = serde_json::json!({
+                "spec": {
+                    "pgexporter": {}
+                }
+            });
+            if let Err(err) = api
+                .patch(
+                    DEFAULT_CLUSTER_NAME,
+                    &PatchParams::default(),
+                    &Patch::Merge(&patch),
+                )
+                .await
+            {
+                error!("Unable to patch PgOpr pgexporter: {:?}", err);
+            }
+        }
+        Err(crate::Error::KubeError { source }) => match source {
+            kube::Error::Api(err) if err.code == 404 => {
+                if let Err(err) =
+                    create_cluster(client, DEFAULT_CLUSTER_NAME, DEFAULT_NAMESPACE, 0).await
+                {
+                    error!("Unable to create PgOpr resource: {:?}", err);
+                }
+            }
+            err => error!("Unable to get PgOpr resource: {:?}", err),
+        },
+        Err(err) => error!("Unable to get PgOpr resource: {:?}", err),
+    }
+}
+
+/// Retires pgexporter through the PgOpr resource.
+pub async fn handle_retire_pgexporter() {
+    super::print_header();
+    let client: Client = k8s::k8s_client().await;
+    let api: Api<pgopr> = Api::namespaced(client, DEFAULT_NAMESPACE);
+    let patch = serde_json::json!({
+        "spec": {
+            "pgexporter": null
+        }
+    });
+    if let Err(err) = api
+        .patch(
+            DEFAULT_CLUSTER_NAME,
+            &PatchParams::default(),
+            &Patch::Merge(&patch),
+        )
+        .await
+    {
+        error!("Unable to patch PgOpr pgexporter: {:?}", err);
     }
 }
 

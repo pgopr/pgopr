@@ -46,6 +46,8 @@ pub mod v1 {
         pub config: Option<BTreeMap<String, String>>,
         /// pgmoneta backup configuration
         pub pgmoneta: Option<PgMonetaSpec>,
+        /// pgexporter configuration
+        pub pgexporter: Option<PgExporterSpec>,
     }
 
     #[derive(Serialize, Deserialize, Debug, PartialEq, Clone, JsonSchema)]
@@ -54,12 +56,19 @@ pub mod v1 {
         pub storage: Option<u32>,
     }
 
+    #[derive(Serialize, Deserialize, Debug, PartialEq, Clone, JsonSchema)]
+    pub struct PgExporterSpec {
+        // resources ResourceRequirements
+        pub resources: Option<ResourceRequirements>,
+    }
+
     /// The status of the PgOpr resource
     #[derive(Serialize, Deserialize, Debug, PartialEq, Clone, JsonSchema, Default)]
     pub struct PgOprStatus {
         /// Current phase (e.g., Pending, Running, Failed)
         pub phase: String,
         /// Status of the primary deployment
+        #[serde(skip_serializing_if = "Option::is_none")]
         pub primary: Option<DeploymentStatus>,
         /// List of replica deployment statuses
         #[serde(default)]
@@ -71,15 +80,27 @@ pub mod v1 {
         #[serde(default)]
         pub storage: Vec<StorageStatus>,
         /// List of conditions for the resource
+        #[serde(skip_serializing_if = "Option::is_none")]
         pub conditions: Option<Vec<Condition>>,
         /// Status of pgmoneta backup
+        #[serde(skip_serializing_if = "Option::is_none")]
         pub pgmoneta: Option<PgMonetaStatus>,
+        /// Status of pgexporter
+        #[serde(skip_serializing_if = "Option::is_none")]
+        pub pgexporter: Option<PgExporterStatus>,
     }
 
     #[derive(Serialize, Deserialize, Debug, PartialEq, Clone, JsonSchema, Default)]
     pub struct PgMonetaStatus {
         pub deployment: Option<DeploymentStatus>,
         pub storage: Option<StorageStatus>,
+        pub ready: bool,
+        pub reason: Option<String>,
+        pub message: Option<String>,
+    }
+    #[derive(Serialize, Deserialize, Debug, PartialEq, Clone, JsonSchema, Default)]
+    pub struct PgExporterStatus {
+        pub deployment: Option<DeploymentStatus>,
         pub ready: bool,
         pub reason: Option<String>,
         pub message: Option<String>,

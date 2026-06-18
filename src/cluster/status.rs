@@ -8,6 +8,7 @@
 
 use super::topology::ClusterTopology;
 use crate::Error;
+use crate::crd::v1::PgExporterStatus;
 use crate::crd::v1::{
     DeploymentStatus, PgMonetaStatus, PgOprStatus, ServiceStatus, StorageStatus, pgopr,
 };
@@ -77,6 +78,7 @@ pub(super) async fn observe(
     observe_services(manager, topology, &mut status).await?;
     observe_storage(manager, topology, &mut status).await?;
     observe_pgmoneta(manager, topology, pgopr, &mut status).await?;
+    observe_pgexporter(manager, topology, pgopr, &mut status).await?;
     finalize(pgopr, topology, &mut status);
 
     Ok(status)
@@ -222,7 +224,54 @@ async fn observe_pgmoneta(
 
     Ok(())
 }
+async fn observe_pgexporter(
+    manager: &ResourceManager,
+    topology: &ClusterTopology,
+    pgopr: &pgopr,
+    status: &mut PgOprStatus,
+) -> Result<(), Error> {
+    if pgopr.spec.pgexporter.is_none() {
+        return Ok(());
+    }
 
+    let deploy_api: Api<Deployment> = Api::namespaced(manager.get_client(), topology.namespace());
+
+    let deployment_exists = deploy_api.get(&topology.pgexporter_name()).await.ok();
+
+    let pod_reason = if let Some(ref _d) = deployment_exists {
+        pod_failure_reason(manager, topology.namespace(), &topology.pgexporter_name()).await?
+    } else {
+        None
+    };
+
+    let deploy_status = deployment_exists
+        .as_ref()
+        .map(|d| deployment_status(&topology.pgexporter_name(), d, pod_reason));
+
+    let ready = deploy_status.as_ref().is_some_and(|d| d.available);
+    let (reason, message) = if ready {
+        (None, None)
+    } else if deployment_exists.is_none() {
+        (
+            Some("DeploymentNotFound".to_string()),
+            Some("pgexporter Deployment does not exist".to_string()),
+        )
+    } else {
+        (
+            Some("DeploymentNotReady".to_string()),
+            Some("pgexporter Deployment exists but is not ready".to_string()),
+        )
+    };
+
+    status.pgexporter = Some(PgExporterStatus {
+        deployment: deploy_status,
+        ready,
+        reason,
+        message,
+    });
+
+    Ok(())
+}
 fn finalize(pgopr: &pgopr, topology: &ClusterTopology, status: &mut PgOprStatus) {
     let primary_ready = status.primary.as_ref().is_some_and(|p| p.available);
     let replicas_ready = status.replicas.iter().filter(|r| r.available).count() as u32;
