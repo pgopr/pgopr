@@ -24,6 +24,10 @@ pub const PGMONETA_METRICS_PORT: i32 = 9100;
 pub const PGEXPORTER_IMAGE: &str = "pgexporter-rocky10";
 pub const PGEXPORTER_PORT: i32 = 5002;
 pub const PGEXPORTER_METRICS_PORT: i32 = 9100;
+/// monitoring image for pgexporter stack(grafana, prometheus)
+pub const PGEXPORTER_MON_IMAGE: &str = "grafana-rocky10";
+pub const PGEXPORTER_MON_GRAFANA_PORT: i32 = 3000;
+pub const PGEXPORTER_MON_PROMETHEUS_PORT: i32 = 9090;
 
 pub struct DeploymentConfig<'a> {
     pub image: &'static str,

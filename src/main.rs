@@ -94,6 +94,11 @@ fn cli() -> Command {
                     Command::new("pgexporter")
                         .about("Provision a pgexporter instance")
                         .display_order(4),
+                )
+                .subcommand(
+                    Command::new("grafana")
+                        .about("Provision a pgexporter monitoring instance (Grafana + Prometheus)")
+                        .display_order(5),
                 ),
         )
         .subcommand(
@@ -120,6 +125,11 @@ fn cli() -> Command {
                     Command::new("pgexporter")
                         .about("Retire a pgexporter instance")
                         .display_order(4),
+                )
+                .subcommand(
+                    Command::new("grafana")
+                        .about("Retire a pgexporter monitoring instance (Grafana + Prometheus)")
+                        .display_order(5),
                 ),
         )
         .subcommand(
@@ -156,6 +166,7 @@ fn cli() -> Command {
                             "primary",
                             "replica",
                             "pgexporter",
+                            "pgexporter-mon",
                         ])
                         .help("Generate YAML resources"),
                 ),
@@ -207,6 +218,7 @@ async fn main() {
                 "replica" => handlers::cluster::handle_provision_replica().await,
                 "pgmoneta" => handlers::cluster::handle_provision_pgmoneta().await,
                 "pgexporter" => handlers::cluster::handle_provision_pgexporter().await,
+                "grafana" => handlers::cluster::handle_provision_grafana().await,
                 name => unreachable!("Unsupported subcommand `{}`", name),
             }
         }
@@ -218,6 +230,7 @@ async fn main() {
                 "replica" => handlers::cluster::handle_retire_replica().await,
                 "pgmoneta" => handlers::cluster::handle_retire_pgmoneta().await,
                 "pgexporter" => handlers::cluster::handle_retire_pgexporter().await,
+                "grafana" => handlers::cluster::handle_retire_grafana().await,
                 name => unreachable!("Unsupported subcommand `{}`", name),
             }
         }
