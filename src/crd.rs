@@ -60,6 +60,13 @@ pub mod v1 {
     pub struct PgExporterSpec {
         // resources ResourceRequirements
         pub resources: Option<ResourceRequirements>,
+        // monitoring resources ResourceRequirements
+        pub monitoring: Option<PgExporterMonitoringSpec>,
+    }
+
+    #[derive(Serialize, Deserialize, Debug, PartialEq, Clone, JsonSchema)]
+    pub struct PgExporterMonitoringSpec {
+        pub resources: Option<ResourceRequirements>,
     }
 
     /// The status of the PgOpr resource
@@ -100,7 +107,10 @@ pub mod v1 {
     }
     #[derive(Serialize, Deserialize, Debug, PartialEq, Clone, JsonSchema, Default)]
     pub struct PgExporterStatus {
+        #[serde(skip_serializing_if = "Option::is_none")]
         pub deployment: Option<DeploymentStatus>,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        pub monitoring: Option<DeploymentStatus>,
         pub ready: bool,
         pub reason: Option<String>,
         pub message: Option<String>,

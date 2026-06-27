@@ -173,7 +173,7 @@ impl Cluster {
         let deployment = primary::build(member.name(), topology.namespace(), config);
         self.manager.sync(pgopr, deployment).await?;
 
-        let service = services::build(member.name(), topology.namespace());
+        let service = services::build(member.name(), topology.namespace(), 5432);
         self.manager.sync(pgopr, service).await?;
 
         Ok(())
@@ -200,7 +200,7 @@ impl Cluster {
         );
         self.manager.sync(pgopr, deployment).await?;
 
-        let service = services::build(member.name(), topology.namespace());
+        let service = services::build(member.name(), topology.namespace(), 5432);
         self.manager.sync(pgopr, service).await?;
 
         Ok(())
@@ -316,6 +316,20 @@ impl Cluster {
                 .and_then(|s| s.resources.as_ref()),
         );
         self.manager.sync(pgopr, deployment).await?;
+        let svc = services::build(&topology.pgexporter_name(), topology.namespace(), 5002);
+        self.manager.sync(pgopr, svc).await?;
+
+        if pgopr
+            .spec
+            .pgexporter
+            .as_ref()
+            .and_then(|s| s.monitoring.as_ref())
+            .is_some()
+        {
+            self.sync_pgexporter_monitoring(pgopr, topology).await?
+        } else {
+            self.cleanup_pgexporter_monitoring(topology).await?
+        }
 
         Ok(())
     }
@@ -328,6 +342,31 @@ impl Cluster {
             .delete::<Secret>(&topology.pgexporter_secret_name(), topology.namespace())
             .await?;
 
+        Ok(())
+    }
+    async fn sync_pgexporter_monitoring(
+        &self,
+        pgopr: &Arc<pgopr>,
+        topology: &ClusterTopology,
+    ) -> Result<(), Error> {
+        let deployment = pgexporter::build_monitoring_deployment(
+            &topology.pgexporter_mon_name(),
+            topology.namespace(),
+            &topology.pgexporter_name(),
+            pgopr
+                .spec
+                .pgexporter
+                .as_ref()
+                .and_then(|s| s.monitoring.as_ref())
+                .and_then(|m| m.resources.as_ref()),
+        );
+        self.manager.sync(pgopr, deployment).await?;
+        Ok(())
+    }
+    async fn cleanup_pgexporter_monitoring(&self, topology: &ClusterTopology) -> Result<(), Error> {
+        self.manager
+            .delete::<Deployment>(&topology.pgexporter_mon_name(), topology.namespace())
+            .await?;
         Ok(())
     }
 }

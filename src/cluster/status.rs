@@ -248,6 +248,23 @@ async fn observe_pgexporter(
         .as_ref()
         .map(|d| deployment_status(&topology.pgexporter_name(), d, pod_reason));
 
+    let monitoring_exists = deploy_api.get(&topology.pgexporter_mon_name()).await.ok();
+
+    let mon_pod_reason = if let Some(ref _d) = monitoring_exists {
+        pod_failure_reason(
+            manager,
+            topology.namespace(),
+            &topology.pgexporter_mon_name(),
+        )
+        .await?
+    } else {
+        None
+    };
+
+    let mon_status = monitoring_exists
+        .as_ref()
+        .map(|d| deployment_status(&topology.pgexporter_mon_name(), d, mon_pod_reason));
+
     let ready = deploy_status.as_ref().is_some_and(|d| d.available);
     let (reason, message) = if ready {
         (None, None)
@@ -265,6 +282,7 @@ async fn observe_pgexporter(
 
     status.pgexporter = Some(PgExporterStatus {
         deployment: deploy_status,
+        monitoring: mon_status,
         ready,
         reason,
         message,

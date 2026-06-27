@@ -21,7 +21,7 @@ pub fn handle_generate(sub_matches: &ArgMatches) {
             crd::crd_generate();
         }
         "service" => {
-            let s = services::build("postgresql", "default");
+            let s = services::build("postgresql", "default", 5432);
             let data = serde_yaml::to_string(&s).expect("Can't serialize pgopr-service.yaml");
             fs::write("pgopr-service.yaml", data)
                 .expect("Unable to write file: pgopr-service.yaml");
@@ -75,6 +75,17 @@ pub fn handle_generate(sub_matches: &ArgMatches) {
         }
         "pgexporter" => {
             crate::pgexporter::pgexporter_generate();
+        }
+        "pgexporter-mon" => {
+            let m = crate::pgexporter::build_monitoring_deployment(
+                "postgresql-pgexporter-mon",
+                "default",
+                "postgresql-pgexporter",
+                None,
+            );
+            let data = serde_yaml::to_string(&m).expect("Can't serialize pgexporter-mon.yaml");
+            fs::write("pgexporter-mon.yaml", data)
+                .expect("Unable to write file: pgexporter-mon.yaml");
         }
         name => {
             unreachable!("Unsupported type `{}`", name)

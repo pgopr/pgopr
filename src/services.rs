@@ -14,7 +14,7 @@ use std::collections::BTreeMap;
 /// # Arguments
 /// - `name` - The name
 /// - `namespace` - The namespace
-pub fn build(name: &str, namespace: &str) -> Service {
+pub fn build(name: &str, namespace: &str, port: i32) -> Service {
     let mut labels: BTreeMap<String, String> = BTreeMap::new();
     labels.insert("app".to_owned(), name.to_owned());
 
@@ -28,7 +28,7 @@ pub fn build(name: &str, namespace: &str) -> Service {
         spec: Some(ServiceSpec {
             type_: Some("NodePort".to_owned()),
             ports: Some(vec![ServicePort {
-                port: 5432,
+                port,
                 ..ServicePort::default()
             }]),
             selector: Some(labels.clone()),

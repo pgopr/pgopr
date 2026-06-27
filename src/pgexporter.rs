@@ -178,3 +178,92 @@ pub fn build_deployment(
         ..Deployment::default()
     }
 }
+
+/// Builds a pgexporter monitoring deployment object (Grafana + Prometheus)
+///
+/// # Arguments
+/// - `name` - Name of the deployment
+/// - `namespace` - Namespace
+/// - `service_host` - Name of the pgexporter service for PGEXPORTER_SERVICE_HOST env var
+/// - `resources` - Name of the resources for pgexporter-mon
+pub fn build_monitoring_deployment(
+    name: &str,
+    namespace: &str,
+    service_host: &str,
+    resources: Option<&ResourceRequirements>,
+) -> Deployment {
+    let mut labels: BTreeMap<String, String> = BTreeMap::new();
+    let k8s_resources = resources.map(workload::map_resources);
+    labels.insert("app".to_owned(), name.to_owned());
+
+    Deployment {
+        metadata: ObjectMeta {
+            name: Some(name.to_owned()),
+            namespace: Some(namespace.to_owned()),
+            labels: Some(labels.clone()),
+            ..ObjectMeta::default()
+        },
+        spec: Some(DeploymentSpec {
+            replicas: Some(1i32),
+            selector: LabelSelector {
+                match_labels: Some(labels.clone()),
+                ..LabelSelector::default()
+            },
+            template: PodTemplateSpec {
+                metadata: Some(ObjectMeta {
+                    labels: Some(labels),
+                    ..ObjectMeta::default()
+                }),
+                spec: Some(PodSpec {
+                    containers: vec![Container {
+                        name: name.to_owned(),
+                        image: Some(workload::PGEXPORTER_MON_IMAGE.to_string()),
+                        image_pull_policy: Some("IfNotPresent".to_string()),
+                        ports: Some(vec![
+                            ContainerPort {
+                                container_port: workload::PGEXPORTER_MON_GRAFANA_PORT,
+                                ..ContainerPort::default()
+                            },
+                            ContainerPort {
+                                container_port: workload::PGEXPORTER_METRICS_PORT,
+                                ..ContainerPort::default()
+                            },
+                            ContainerPort {
+                                container_port: workload::PGEXPORTER_MON_PROMETHEUS_PORT,
+                                ..ContainerPort::default()
+                            },
+                        ]),
+                        env: Some(vec![
+                            EnvVar {
+                                name: "PGEXPORTER_SERVICE_HOST".to_string(),
+                                value: Some(service_host.to_string()),
+                                ..EnvVar::default()
+                            },
+                            EnvVar {
+                                name: "PGEXPORTER_SERVICE_PORT".to_string(),
+                                value: Some("5002".to_string()),
+                                ..EnvVar::default()
+                            },
+                        ]),
+                        liveness_probe: Some(Probe {
+                            initial_delay_seconds: Some(30),
+                            exec: Some(ExecAction {
+                                command: Some(vec![
+                                    "curl".to_string(),
+                                    "-f".to_string(),
+                                    "http://localhost:3000/api/health".to_string(),
+                                ]),
+                            }),
+                            ..Probe::default()
+                        }),
+                        resources: k8s_resources,
+                        ..Container::default()
+                    }],
+                    ..PodSpec::default()
+                }),
+            },
+            ..DeploymentSpec::default()
+        }),
+        ..Deployment::default()
+    }
+}

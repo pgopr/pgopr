@@ -171,7 +171,46 @@ test_operator() {
         exit 1
     fi
 
-    # 5. Retire pgexporter
+    # 5. Provision pgexporter monitoring (Grafana + Prometheus)
+    echo "Provisioning pgexporter monitoring (Grafana)..."
+    "$PGOPR_BIN" provision grafana
+
+    echo "Waiting for pgexporter-mon deployment to be created..."
+    local mon_count=0
+    while ! kubectl get deployment postgresql-pgexporter-mon >/dev/null 2>&1; do
+        if [ $mon_count -ge 36 ]; then
+            echo "Timeout waiting for postgresql-pgexporter-mon deployment."
+            exit 1
+        fi
+        echo "Waiting for pgexporter-mon deployment..."
+        sleep 5
+        mon_count=$((mon_count+1))
+    done
+
+    echo "Checking pgexporter-mon resources..."
+    kubectl get deployment postgresql-pgexporter-mon
+
+    echo "Verifying pgexporter monitoring status..."
+    local mon_ready=$(kubectl get pgopr postgresql -o jsonpath='{.status.pgexporter.monitoring.ready_replicas}' 2>/dev/null || echo "unset")
+    echo "Monitoring deployment ready_replicas: $mon_ready"
+
+    # 6. Retire pgexporter monitoring
+    echo "Retiring pgexporter monitoring (Grafana)..."
+    "$PGOPR_BIN" retire grafana
+
+    echo "Waiting for pgexporter-mon deployment to be deleted..."
+    local mon_delete_count=0
+    while kubectl get deployment postgresql-pgexporter-mon >/dev/null 2>&1; do
+        if [ $mon_delete_count -ge 24 ]; then
+            echo "Timeout waiting for pgexporter-mon deployment termination."
+            exit 1
+        fi
+        echo "Waiting for pgexporter-mon deployment termination..."
+        sleep 5
+        mon_delete_count=$((mon_delete_count+1))
+    done
+
+    # 7. Retire pgexporter
     echo "Retiring pgexporter..."
     "$PGOPR_BIN" retire pgexporter
 
@@ -187,7 +226,7 @@ test_operator() {
         pgexporter_delete_count=$((pgexporter_delete_count+1))
     done
 
-    # 6. Retire pgmoneta
+    # 8. Retire pgmoneta
     echo "Retiring pgmoneta..."
     "$PGOPR_BIN" retire pgmoneta
 
@@ -203,7 +242,7 @@ test_operator() {
         pgmoneta_delete_count=$((pgmoneta_delete_count+1))
     done
 
-    # 7. Retire the primary instance
+    # 9. Retire the primary instance
     echo "Retiring primary PostgreSQL instance..."
     "$PGOPR_BIN" retire primary
 

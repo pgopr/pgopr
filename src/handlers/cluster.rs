@@ -240,6 +240,67 @@ pub async fn handle_retire_pgmoneta() {
     }
 }
 
+/// Provisions pgexporter monitoring (Grafana + Prometheus) through the PgOpr resource.
+pub async fn handle_provision_grafana() {
+    super::print_header();
+    let client: Client = k8s::k8s_client().await;
+    match get_cluster(client.clone(), DEFAULT_CLUSTER_NAME, DEFAULT_NAMESPACE).await {
+        Ok(_) => {
+            let api: Api<pgopr> = Api::namespaced(client, DEFAULT_NAMESPACE);
+            let patch = serde_json::json!({
+                "spec": {
+                    "pgexporter": {
+                        "monitoring": {}
+                    }
+                }
+            });
+            if let Err(err) = api
+                .patch(
+                    DEFAULT_CLUSTER_NAME,
+                    &PatchParams::default(),
+                    &Patch::Merge(&patch),
+                )
+                .await
+            {
+                error!("Unable to patch PgOpr pgexporter monitoring: {:?}", err);
+            }
+        }
+        Err(crate::Error::KubeError { source }) => match source {
+            kube::Error::Api(err) if err.code == 404 => {
+                error!(
+                    "PgOpr resource does not exist. Create the cluster first with `pgopr provision primary`"
+                );
+            }
+            err => error!("Unable to get PgOpr resource: {:?}", err),
+        },
+        Err(err) => error!("Unable to get PgOpr resource: {:?}", err),
+    }
+}
+
+/// Retires pgexporter monitoring (Grafana + Prometheus) through the PgOpr resource.
+pub async fn handle_retire_grafana() {
+    super::print_header();
+    let client: Client = k8s::k8s_client().await;
+    let api: Api<pgopr> = Api::namespaced(client, DEFAULT_NAMESPACE);
+    let patch = serde_json::json!({
+        "spec": {
+            "pgexporter": {
+                "monitoring": null
+            }
+        }
+    });
+    if let Err(err) = api
+        .patch(
+            DEFAULT_CLUSTER_NAME,
+            &PatchParams::default(),
+            &Patch::Merge(&patch),
+        )
+        .await
+    {
+        error!("Unable to patch PgOpr pgexporter monitoring: {:?}", err);
+    }
+}
+
 /// Removes the primary database components through the PgOpr resource.
 pub async fn handle_retire_primary() {
     super::print_header();

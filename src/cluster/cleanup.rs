@@ -81,6 +81,9 @@ pub(super) async fn all(
     manager
         .delete::<Secret>(&topology.pgexporter_secret_name(), topology.namespace())
         .await?;
+    manager
+        .delete::<Deployment>(&topology.pgexporter_mon_name(), topology.namespace())
+        .await?;
 
     // Cluster-scoped PV discovery and cleanup
     manager
