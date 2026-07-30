@@ -188,3 +188,280 @@ pub(super) fn pv_name(resource_name: &str) -> String {
 pub(super) fn pvc_name(resource_name: &str) -> String {
     format!("{}-{}", resource_name, PVC_NAME_SUFFIX)
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    // ── ClusterTopology naming helpers ──
+
+    #[test]
+    fn topology_pgmoneta_name() {
+        let t = ClusterTopology {
+            name: "test".into(),
+            namespace: "ns".into(),
+            storage: 5,
+            replicas: 0,
+        };
+        assert_eq!(t.pgmoneta_name(), "test-pgmoneta");
+    }
+
+    #[test]
+    fn topology_pgmoneta_pv_name() {
+        let t = ClusterTopology {
+            name: "test".into(),
+            namespace: "ns".into(),
+            storage: 5,
+            replicas: 0,
+        };
+        assert_eq!(t.pgmoneta_pv_name(), "test-pgmoneta-pv-volume");
+    }
+
+    #[test]
+    fn topology_pgmoneta_pvc_name() {
+        let t = ClusterTopology {
+            name: "test".into(),
+            namespace: "ns".into(),
+            storage: 5,
+            replicas: 0,
+        };
+        assert_eq!(t.pgmoneta_pvc_name(), "test-pgmoneta-pv-claim");
+    }
+
+    #[test]
+    fn topology_pgmoneta_secret_name() {
+        let t = ClusterTopology {
+            name: "test".into(),
+            namespace: "ns".into(),
+            storage: 5,
+            replicas: 0,
+        };
+        assert_eq!(t.pgmoneta_secret_name(), "test-pgmoneta-secret");
+    }
+
+    #[test]
+    fn topology_pgexporter_name() {
+        let t = ClusterTopology {
+            name: "test".into(),
+            namespace: "ns".into(),
+            storage: 5,
+            replicas: 0,
+        };
+        assert_eq!(t.pgexporter_name(), "test-pgexporter");
+    }
+
+    #[test]
+    fn topology_pgexporter_secret_name() {
+        let t = ClusterTopology {
+            name: "test".into(),
+            namespace: "ns".into(),
+            storage: 5,
+            replicas: 0,
+        };
+        assert_eq!(t.pgexporter_secret_name(), "test-pgexporter-secret");
+    }
+
+    #[test]
+    fn topology_pgexporter_mon_name() {
+        let t = ClusterTopology {
+            name: "test".into(),
+            namespace: "ns".into(),
+            storage: 5,
+            replicas: 0,
+        };
+        assert_eq!(t.pgexporter_mon_name(), "test-pgexporter-mon");
+    }
+
+    // ── replica_ordinal ──
+
+    #[test]
+    fn replica_ordinal_valid_three() {
+        assert_eq!(replica_ordinal("mycluster", "mycluster-replica-3"), Some(3));
+    }
+
+    #[test]
+    fn replica_ordinal_valid_one() {
+        assert_eq!(replica_ordinal("mycluster", "mycluster-replica-1"), Some(1));
+    }
+
+    #[test]
+    fn replica_ordinal_non_replica_label_returns_none() {
+        assert_eq!(replica_ordinal("mycluster", "mycluster-primary"), None);
+    }
+
+    #[test]
+    fn replica_ordinal_unrelated_name_returns_none() {
+        assert_eq!(replica_ordinal("mycluster", "some-other-deployment"), None);
+    }
+
+    #[test]
+    fn replica_ordinal_non_numeric_suffix_returns_none() {
+        assert_eq!(replica_ordinal("mycluster", "mycluster-replica-abc"), None);
+    }
+
+    #[test]
+    fn replica_ordinal_prefix_mismatch_returns_none() {
+        assert_eq!(replica_ordinal("cluster-a", "cluster-b-replica-1"), None);
+    }
+
+    // ── replica_name ──
+
+    #[test]
+    fn replica_name_first_replica() {
+        assert_eq!(replica_name("mycluster", 1), "mycluster-replica-1");
+    }
+
+    #[test]
+    fn replica_name_tenth_replica() {
+        assert_eq!(replica_name("mycluster", 10), "mycluster-replica-10");
+    }
+
+    // ── pv_name / pvc_name ──
+
+    #[test]
+    fn pv_name_appends_pv_volume_suffix() {
+        assert_eq!(pv_name("postgresql"), "postgresql-pv-volume");
+    }
+
+    #[test]
+    fn pvc_name_appends_pv_claim_suffix() {
+        assert_eq!(
+            pvc_name("postgresql-replica-2"),
+            "postgresql-replica-2-pv-claim"
+        );
+    }
+
+    // ── ClusterMember ──
+
+    #[test]
+    fn primary_member_has_no_slot() {
+        let m = ClusterMember::primary("mycluster".into());
+        assert_eq!(m.name(), "mycluster");
+        assert_eq!(m.host_path(), "/tmp/kind");
+        assert_eq!(m.slot_name(), None);
+    }
+
+    #[test]
+    fn primary_member_pv_and_pvc_names() {
+        let m = ClusterMember::primary("mycluster".into());
+        assert_eq!(m.pv_name(), "mycluster-pv-volume");
+        assert_eq!(m.pvc_name(), "mycluster-pv-claim");
+    }
+
+    #[test]
+    fn replica_member_has_slot() {
+        let m = ClusterMember::replica("mycluster", 2);
+        assert_eq!(m.name(), "mycluster-replica-2");
+        assert_eq!(m.host_path(), "/tmp/kind-replica-2");
+        assert_eq!(m.slot_name(), Some("replica2"));
+    }
+
+    #[test]
+    fn replica_member_pv_and_pvc_names() {
+        let m = ClusterMember::replica("mycluster", 2);
+        assert_eq!(m.pv_name(), "mycluster-replica-2-pv-volume");
+        assert_eq!(m.pvc_name(), "mycluster-replica-2-pv-claim");
+    }
+
+    // ── ClusterTopology getters and members ──
+
+    #[test]
+    fn topology_storage_and_replicas() {
+        let t = ClusterTopology {
+            name: "c".into(),
+            namespace: "ns".into(),
+            storage: 10,
+            replicas: 3,
+        };
+        assert_eq!(t.storage(), 10);
+        assert_eq!(t.replicas(), 3);
+    }
+
+    #[test]
+    fn topology_primary() {
+        let t = ClusterTopology {
+            name: "mycluster".into(),
+            namespace: "ns".into(),
+            storage: 5,
+            replicas: 0,
+        };
+        let p = t.primary();
+        assert_eq!(p.name(), "mycluster");
+    }
+
+    #[test]
+    fn topology_replica_members_count_matches_replicas() {
+        let t = ClusterTopology {
+            name: "c".into(),
+            namespace: "ns".into(),
+            storage: 5,
+            replicas: 3,
+        };
+        let members = t.replica_members();
+        assert_eq!(members.len(), 3);
+        assert_eq!(members[0].name(), "c-replica-1");
+        assert_eq!(members[1].name(), "c-replica-2");
+        assert_eq!(members[2].name(), "c-replica-3");
+    }
+
+    #[test]
+    fn topology_no_replicas_when_replicas_is_zero() {
+        let t = ClusterTopology {
+            name: "c".into(),
+            namespace: "ns".into(),
+            storage: 5,
+            replicas: 0,
+        };
+        assert!(t.replica_members().is_empty());
+    }
+
+    #[test]
+    fn topology_member_names_includes_primary() {
+        let t = ClusterTopology {
+            name: "c".into(),
+            namespace: "ns".into(),
+            storage: 5,
+            replicas: 0,
+        };
+        assert!(t.member_names().contains("c"));
+    }
+
+    #[test]
+    fn topology_member_names_includes_replicas() {
+        let t = ClusterTopology {
+            name: "c".into(),
+            namespace: "ns".into(),
+            storage: 5,
+            replicas: 2,
+        };
+        let names = t.member_names();
+        assert!(names.contains("c"));
+        assert!(names.contains("c-replica-1"));
+        assert!(names.contains("c-replica-2"));
+        assert_eq!(names.len(), 3);
+    }
+
+    #[test]
+    fn topology_pvc_names_includes_all_members() {
+        let t = ClusterTopology {
+            name: "c".into(),
+            namespace: "ns".into(),
+            storage: 5,
+            replicas: 1,
+        };
+        let pvcs = t.pvc_names();
+        assert!(pvcs.contains("c-pv-claim"));
+        assert!(pvcs.contains("c-replica-1-pv-claim"));
+    }
+
+    #[test]
+    fn topology_pv_selector() {
+        let t = ClusterTopology {
+            name: "mycluster".into(),
+            namespace: "ns".into(),
+            storage: 5,
+            replicas: 0,
+        };
+        assert_eq!(t.pv_selector(), "pgopr.io/cluster=mycluster");
+    }
+}

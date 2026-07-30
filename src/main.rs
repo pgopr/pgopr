@@ -79,6 +79,58 @@ fn cli() -> Command {
                 .display_order(1),
         )
         .subcommand(
+            Command::new("deploy")
+                .about("Deploy the operator into the cluster")
+                .display_order(2)
+                .arg(
+                    Arg::new("image")
+                        .long("image")
+                        .default_value("ghcr.io/pgopr/operator:latest")
+                        .help("Operator container image"),
+                )
+                .arg(
+                    Arg::new("target-namespace")
+                        .long("target-namespace")
+                        .default_value("default")
+                        .help("Namespace the operator will watch"),
+                )
+                .arg(
+                    Arg::new("dry-run")
+                        .long("dry-run")
+                        .action(clap::ArgAction::SetTrue)
+                        .help("Print generated resources without applying"),
+                )
+                .arg(
+                    Arg::new("wait")
+                        .long("wait")
+                        .action(clap::ArgAction::SetTrue)
+                        .help("Wait for the Deployment to become ready"),
+                ),
+        )
+        .subcommand(
+            Command::new("undeploy")
+                .about("Remove the operator from the cluster")
+                .display_order(3)
+                .arg(
+                    Arg::new("target-namespace")
+                        .long("target-namespace")
+                        .default_value("default")
+                        .help("Namespace the operator is watching"),
+                )
+                .arg(
+                    Arg::new("dry-run")
+                        .long("dry-run")
+                        .action(clap::ArgAction::SetTrue)
+                        .help("Print resources to delete without applying"),
+                )
+                .arg(
+                    Arg::new("delete-namespace")
+                        .long("delete-namespace")
+                        .action(clap::ArgAction::SetTrue)
+                        .help("Also delete the pgopr-system namespace"),
+                ),
+        )
+        .subcommand(
             Command::new("provision")
                 .about("Provision a component")
                 .display_order(2)
@@ -273,6 +325,29 @@ async fn main() {
 
         Some(("config", sub_matches)) => {
             handlers::local_config::handle_config(sub_matches).await;
+        }
+        Some(("deploy", sub_matches)) => {
+            let image = sub_matches
+                .get_one::<String>("image")
+                .map(String::as_str)
+                .unwrap_or("ghcr.io/pgopr/operator:latest");
+            let target_ns = sub_matches
+                .get_one::<String>("target-namespace")
+                .map(String::as_str)
+                .unwrap_or("default");
+            let dry_run = sub_matches.get_flag("dry-run");
+            let wait = sub_matches.get_flag("wait");
+            handlers::deploy::handle_deploy(image, target_ns, dry_run, wait).await;
+        }
+
+        Some(("undeploy", sub_matches)) => {
+            let target_ns = sub_matches
+                .get_one::<String>("target-namespace")
+                .map(String::as_str)
+                .unwrap_or("default");
+            let dry_run = sub_matches.get_flag("dry-run");
+            let delete_ns = sub_matches.get_flag("delete-namespace");
+            handlers::deploy::handle_undeploy(target_ns, dry_run, delete_ns).await;
         }
 
         _ => {

@@ -7,6 +7,7 @@
  */
 
 pub mod cluster;
+pub mod deploy;
 pub mod generate;
 pub mod init;
 pub mod local_config;

@@ -8,21 +8,30 @@
 use crate::{ContextData, k8s, on_error, pgopr, reconcile};
 use futures::StreamExt;
 use kube::{
-    Api, Client,
+    Api,
     runtime::{Controller, watcher},
 };
-use log::{debug, error};
+use log::{debug, error, info};
 use std::sync::Arc;
 
 /// Initializes and starts the Kubernetes controller loop for pgopr resources.
 pub async fn run_operator() {
     super::print_header();
 
-    let client: Client = k8s::k8s_client().await;
-    let crd_api: Api<pgopr> = Api::all(client.clone());
-    let context: Arc<ContextData> = Arc::new(ContextData::new(client.clone()));
+    let client = k8s::k8s_client().await;
+    let target_ns =
+        std::env::var("PGOPR_TARGET_NAMESPACE").unwrap_or_else(|_| "default".to_string());
 
-    // Start the controller
+    info!("watching namespace: {}", target_ns);
+
+    let crd_api: Api<pgopr> = if target_ns == "*" {
+        Api::all(client.clone())
+    } else {
+        Api::namespaced(client.clone(), &target_ns)
+    };
+
+    let context = Arc::new(ContextData::new(client.clone()));
+
     Controller::new(crd_api.clone(), watcher::Config::default())
         .run(reconcile, on_error, context)
         .for_each(|reconciliation_result| async move {
