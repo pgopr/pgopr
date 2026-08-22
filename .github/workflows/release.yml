@@ -160,11 +160,11 @@ jobs:
           EISVOGEL_VERSION=3.4.0
           mkdir -p ~/.local/share/pandoc/templates
           curl -fsSLo /tmp/eisvogel.tar.gz \
-            "https://github.com/Wandmalfarbe/pandoc-latex-template/releases/download/v${EISVOGEL_VERSION}/Eisvogel.tar.gz"
+            "https://github.com/Wandmalfarbe/pandoc-latex-template/releases/download/v${EISVOGEL_VERSION}/Eisvogel-${EISVOGEL_VERSION}.tar.gz"
           tar -xzf /tmp/eisvogel.tar.gz -C ~/.local/share/pandoc/templates --strip-components=1
 
       - name: Build manual
-        run: bash doc/build_manual.sh
+        run: make doc
 
       - name: Upload to release
         env:

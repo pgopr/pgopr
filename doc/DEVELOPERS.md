@@ -85,6 +85,15 @@ Run from the project root:
 make doc
 ```
 
+The manual build writes:
+
+* `target/doc/pgopr-en.pdf`
+* `target/doc/pgopr-en.html`
+
+The build script fails if `pandoc`, `xelatex`, or the Eisvogel template is not
+available. CI and releases should use the same `make doc`/`doc/build_manual.sh`
+path as local development.
+
 ---
 
 ## Environment Setup

@@ -50,6 +50,43 @@ jobs:
       - name: Run cargo test
         run: cargo test
 
+  manual:
+    name: Build Manual
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install pandoc and TeX Live
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            pandoc \
+            texlive-xetex \
+            texlive-fonts-recommended \
+            texlive-fonts-extra \
+            texlive-plain-generic \
+            texlive-latex-extra \
+            lmodern
+
+      - name: Install Eisvogel template
+        run: |
+          EISVOGEL_VERSION=3.4.0
+          mkdir -p ~/.local/share/pandoc/templates
+          curl -fsSLo /tmp/eisvogel.tar.gz \
+            "https://github.com/Wandmalfarbe/pandoc-latex-template/releases/download/v${EISVOGEL_VERSION}/Eisvogel-${EISVOGEL_VERSION}.tar.gz"
+          tar -xzf /tmp/eisvogel.tar.gz -C ~/.local/share/pandoc/templates --strip-components=1
+
+      - name: Build manual
+        run: make doc
+
+      - name: Upload manual artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: manual
+          path: |
+            target/doc/pgopr-en.pdf
+            target/doc/pgopr-en.html
+
   full-test:
     name: Integration Tests
     runs-on: ubuntu-latest
