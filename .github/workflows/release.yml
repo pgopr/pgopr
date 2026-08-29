@@ -29,7 +29,7 @@ jobs:
 
   build:
     name: Build ${{ matrix.target }}
-    needs: create-release
+    needs: [create-release, manual]
     runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
@@ -90,14 +90,22 @@ jobs:
             cargo build --release --target ${{ matrix.target }}
           fi
 
+      - name: Download manual
+        uses: actions/download-artifact@v4
+        with:
+          name: manual
+          path: manual-dist
+
       - name: Package (Unix Tarball)
         if: matrix.archive == 'tar.gz'
         shell: bash
         run: |
           BINARY=target/${{ matrix.target }}/release/pgopr
+          BINDIR=$(dirname "$BINARY")
           ARCHIVE=pgopr-${{ github.ref_name }}-${{ matrix.target }}.tar.gz
-          cp README.md LICENSE $(dirname "$BINARY")/
-          tar -czf "$ARCHIVE" -C "$(dirname "$BINARY")" "$(basename "$BINARY")" README.md LICENSE
+          cp README.md LICENSE manual-dist/pgopr-en.pdf manual-dist/pgopr-en.html "$BINDIR"/
+          tar -czf "$ARCHIVE" -C "$BINDIR" \
+            "$(basename "$BINARY")" README.md LICENSE pgopr-en.pdf pgopr-en.html
           echo "ARCHIVE=$ARCHIVE" >> "$GITHUB_ENV"
 
       - name: Package (Windows Zip)
@@ -106,7 +114,7 @@ jobs:
         run: |
           $binary = "target\${{ matrix.target }}\release\pgopr.exe"
           $archive = "pgopr-${{ github.ref_name }}-${{ matrix.target }}.zip"
-          Compress-Archive -Path $binary, README.md, LICENSE -DestinationPath $archive
+          Compress-Archive -Path $binary, README.md, LICENSE, manual-dist\pgopr-en.pdf, manual-dist\pgopr-en.html -DestinationPath $archive
           "ARCHIVE=$archive" | Out-File -FilePath $env:GITHUB_ENV -Append
 
       - name: Build Native OS Packages (.deb & .rpm)
@@ -142,29 +150,22 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v5
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
 
-      - name: Install pandoc and TeX Live
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y \
-            pandoc \
-            texlive-xetex \
-            texlive-fonts-recommended \
-            texlive-fonts-extra \
-            texlive-plain-generic \
-            texlive-latex-extra \
-            lmodern
-
-      - name: Install eisvogel template
-        run: |
-          EISVOGEL_VERSION=3.4.0
-          mkdir -p ~/.local/share/pandoc/templates
-          curl -fsSLo /tmp/eisvogel.tar.gz \
-            "https://github.com/Wandmalfarbe/pandoc-latex-template/releases/download/v${EISVOGEL_VERSION}/Eisvogel.tar.gz"
-          tar -xzf /tmp/eisvogel.tar.gz -C ~/.local/share/pandoc/templates --strip-components=1
+      - name: Install pandoc
+        run: sudo apt-get update && sudo apt-get install -y pandoc
 
       - name: Build manual
-        run: bash doc/build_manual.sh
+        run: bash doc/build.sh manual
+
+      - name: Upload manual artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: manual
+          path: |
+            target/doc/pgopr-en.pdf
+            target/doc/pgopr-en.html
 
       - name: Upload to release
         env:

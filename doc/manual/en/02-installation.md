@@ -2,7 +2,7 @@
 
 # Installation
 
-This chapter will show you how to do a simple installation of [**pgopr**](https://github.com/pgopr/pgopr), resulting in an operator that controls a PostgreSQL cluster and related technologies using Kubernetes 1.28+.
+This chapter will show you how to do a simple installation of [**pgopr**](https://github.com/pgopr/pgopr), resulting in an operator that controls a PostgreSQL cluster and related technologies using Kubernetes 1.34+.
 
 ### Prerequisites
 
@@ -83,7 +83,7 @@ fs.inotify.max_user_instances = 512
 
 and reboot as well.
 
-5. Install pgopr:
+5. Install the pgopr CRD:
 
 ```bash
 ./pgopr install
@@ -97,12 +97,57 @@ Output:
 2025-05-12T22:40:35.603058296-04:00 INFO pgopr::crd - Created CRD
 ```
 
+`pgopr install` installs or updates the CustomResourceDefinition. To run the
+operator locally for development, start `pgopr` with no subcommand:
+
+```bash
+./pgopr
+```
+
+To deploy the operator into Kubernetes, use:
+
+```bash
+./pgopr deploy --image ghcr.io/pgopr/operator:latest --target-namespace default --wait
+```
+
+To inspect the generated operator resources without applying them, use:
+
+```bash
+./pgopr deploy --dry-run
+```
+
+To remove the in-cluster operator resources:
+
+```bash
+./pgopr undeploy --target-namespace default
+```
+
 ## Configuration
 
-pgopr uses configuration files in TOML format. The default configuration is loaded from:
+pgopr uses a local TOML configuration file:
 
-- `$HOME/.config/pgopr/config.toml`
-- `$HOME/.pgopr/config.toml`
+- `$HOME/.pgopr/pgopr.toml`
+
+Create it interactively:
+
+```bash
+pgopr --init
+```
+
+View the current values:
+
+```bash
+pgopr config show
+```
+
+Update individual values:
+
+```bash
+pgopr config set cluster_name postgresql
+pgopr config set namespace default
+pgopr config set default_storage 5
+pgopr config set default_pgmoneta_storage 10
+```
 
 ## Troubleshooting
 

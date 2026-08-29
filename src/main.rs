@@ -20,6 +20,7 @@ use crate::crd::v1::pgopr;
 
 mod cluster;
 pub mod crd;
+mod docgen;
 mod finalizer;
 pub mod handlers;
 mod k8s;
@@ -64,7 +65,9 @@ fn cli() -> Command {
         .propagate_version(true)
         .trailing_var_arg(true)
         .after_help(
-            "pgopr: https://pgopr.github.io/\nReport bugs: https://github.com/pgopr/pgopr/issues",
+            "Manual: pgopr-en.pdf / pgopr-en.html, shipped with this release\n\
+             pgopr: https://pgopr.github.io/\n\
+             Report bugs: https://github.com/pgopr/pgopr/issues",
         )
         .arg(
             Arg::new("init")
@@ -251,6 +254,17 @@ fn cli() -> Command {
                         .help("Generate YAML resources"),
                 ),
         )
+        .subcommand(
+            Command::new("build-manual")
+                .about("Build the PDF/HTML user manual")
+                .hide(true)
+                .arg(
+                    Arg::new("source")
+                        .required(true)
+                        .help("Source directory containing ??-*.md chapter files"),
+                )
+                .arg(Arg::new("output").required(true).help("Output PDF path")),
+        )
 }
 
 /// Generate shell completion templates
@@ -348,6 +362,15 @@ async fn main() {
             let dry_run = sub_matches.get_flag("dry-run");
             let delete_ns = sub_matches.get_flag("delete-namespace");
             handlers::deploy::handle_undeploy(target_ns, dry_run, delete_ns).await;
+        }
+
+        Some(("build-manual", sub_matches)) => {
+            let source = std::path::Path::new(sub_matches.get_one::<String>("source").unwrap());
+            let output = std::path::Path::new(sub_matches.get_one::<String>("output").unwrap());
+            match docgen::manual::build_manual(source, output) {
+                Ok(path) => println!("{}", path.display()),
+                Err(error) => eprintln!("Error: {error:#}"),
+            }
         }
 
         _ => {
