@@ -30,4 +30,4 @@ uninstall:
 	rm -f /usr/local/bin/$(BINARY_NAME)
 
 doc:
-	./doc/build_manual.sh
+	bash doc/build.sh

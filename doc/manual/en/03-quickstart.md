@@ -13,9 +13,12 @@ Usage:
 
 Subcommands:
   install       Install the operator
+  deploy        Deploy the operator into the cluster
+  undeploy      Remove the operator from the cluster
   provision     Provision a component
   retire        Retire a component
   uninstall     Uninstall the operator
+  config        Manage local configuration options
   completion    Generate a shell completion file
   generate      Generate YAML resources
   help          Print this message or the help of the given subcommand(s)
@@ -37,23 +40,58 @@ Ensure you have `kubectl` installed and configured to communicate with your clus
 
 ### Install the Operator
 
-First, install the `pgopr` operator into your Kubernetes cluster:
+First, install the `pgopr` CustomResourceDefinition:
 
 ``` sh
 pgopr install
 ```
 
-This will deploy the necessary Custom Resource Definitions (CRDs) and the operator control plane.
+For development, run the operator loop locally:
+
+``` sh
+pgopr
+```
+
+For an in-cluster operator deployment, use:
+
+``` sh
+pgopr deploy --target-namespace default --wait
+```
+
+### Configure defaults
+
+The CLI reads local defaults from `~/.pgopr/pgopr.toml`.
+
+``` sh
+pgopr --init
+pgopr config show
+```
 
 ### Provision a Primary Instance
 
-Provision a PostgreSQL 17 primary instance using the `provision` subcommand:
+Provision a PostgreSQL primary instance using the `provision` subcommand:
 
 ``` sh
 pgopr provision primary
 ```
 
 This will create the PostgreSQL cluster, services, and persistent storage.
+
+Provisioning commands update the `PgOpr` custom resource. The operator then
+reconciles the Kubernetes Deployments, Services, PVs, PVCs, Secrets, and status.
+
+### Experimental operations components
+
+pgopr has experimental commands for backup, metrics, and monitoring:
+
+``` sh
+pgopr provision pgmoneta
+pgopr provision pgexporter
+pgopr provision grafana
+```
+
+These features are development previews. See the Experimental features chapter
+before relying on them.
 
 ## Accessing the Database
 
@@ -92,8 +130,11 @@ psql -h localhost -p 5432 -U myuser mydb
 If you prefer to manage the Kubernetes resources directly with `kubectl`, you can generate the YAML definitions instead of using `provision`:
 
 ``` sh
-pgopr generate primary
+pgopr generate --type primary
 ```
+
+Available resource types include `crd`, `service`, `persistent`, `primary`,
+`replica`, `pgexporter`, and `pgexporter-mon`.
 
 ### Shell Completion
 

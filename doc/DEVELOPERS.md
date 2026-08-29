@@ -61,20 +61,12 @@ This process is optional. If you choose not to generate the PDF and HTML manuals
 
 ### Download dependencies
 
+The PDF manual is drawn by pgopr itself (printpdf, no LaTeX). Pandoc is
+still needed for the HTML manual.
+
 ```bash
 # Fedora
-sudo dnf install pandoc texlive-scheme-basic
-```
-
-### Setup Eisvogel
-
-Locate your user data directory (`$HOME/.local/share/pandoc` on Linux) and install the Eisvogel template:
-
-```bash
-wget https://github.com/Wandmalfarbe/pandoc-latex-template/releases/download/v3.4.0/Eisvogel-3.4.0.tar.gz
-tar -xzf Eisvogel-3.4.0.tar.gz
-mkdir -p $HOME/.local/share/pandoc/templates
-mv Eisvogel-3.4.0/eisvogel.latex $HOME/.local/share/pandoc/templates/
+sudo dnf install pandoc
 ```
 
 ### Build documentation
@@ -84,6 +76,14 @@ Run from the project root:
 ```bash
 make doc
 ```
+
+The manual build writes:
+
+* `target/doc/pgopr-en.pdf`
+* `target/doc/pgopr-en.html`
+
+The build script fails if `cargo` or `pandoc` is not available. CI and
+releases use the same `make doc`/`doc/build.sh` path as local development.
 
 ---
 

@@ -30,6 +30,14 @@ serde_json = { version = "1.0" }
 serde_yaml = { version = "0.9" }
 thiserror = { version = "2.0" }
 toml = { version = "0.9" }
+anyhow = "1.0"
+markdown = "1.0.0"
+printpdf = { version = "0.12", default-features = false, features = ["text_layout", "png"] }
+ttf-parser = "0.25"
+
+[dev-dependencies]
+pdf-extract = "0.12"
+tempfile = "3"
 
 [package.metadata.deb]
 maintainer = "Jesper Pedersen <jesperpedersen.db@gmail.com>"
