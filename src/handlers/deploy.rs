@@ -23,6 +23,46 @@ use std::collections::BTreeMap;
 
 const OPERATOR_NAME: &str = "pgopr-operator";
 const OPERATOR_NAMESPACE: &str = "pgopr-system";
+/// Seconds to wait for the operator Deployment to become ready (`--wait`).
+const OPERATOR_READY_TIMEOUT_SECS: u64 = 120;
+
+/// CLI-specific error for deployment-related operations (`deploy` / `undeploy`).
+#[derive(Debug, thiserror::Error)]
+pub enum DeployError {
+    #[error("failed to {operation} {resource}: {source}")]
+    Api {
+        operation: String,
+        resource: String,
+        #[source]
+        source: kube::Error,
+    },
+
+    /// Deploying (create or patch) the pgopr CRD failed.
+    #[error("failed to deploy pgopr CRD: {source}")]
+    CrdDeploy {
+        #[source]
+        source: kube::Error,
+    },
+
+    #[error("failed waiting for operator Deployment {namespace}/{name} to become ready: {source}")]
+    WaitReady {
+        namespace: String,
+        name: String,
+        #[source]
+        source: kube::runtime::wait::Error,
+    },
+
+    #[error(
+        "timed out after {timeout_secs}s waiting for operator Deployment {namespace}/{name} to become ready"
+    )]
+    WaitTimeout {
+        namespace: String,
+        name: String,
+        timeout_secs: u64,
+        #[source]
+        source: tokio::time::error::Elapsed,
+    },
+}
 
 /// Builds the Namespace object for the operator control plane.
 ///
@@ -277,7 +317,12 @@ fn build_operator_deployment(image: &str, target_ns: &str) -> Deployment {
 /// - `target_ns` - Namespace the operator will watch
 /// - `dry_run` - If true, print generated YAML and exit without API calls
 /// - `wait` - If true, block until the operator Deployment is ready
-pub async fn handle_deploy(image: &str, target_ns: &str, dry_run: bool, wait: bool) {
+pub async fn handle_deploy(
+    image: &str,
+    target_ns: &str,
+    dry_run: bool,
+    wait: bool,
+) -> Result<(), DeployError> {
     super::print_header();
 
     if dry_run {
@@ -292,13 +337,15 @@ pub async fn handle_deploy(image: &str, target_ns: &str, dry_run: bool, wait: bo
         println!("---\n{}", serde_yaml::to_string(&rb).unwrap());
         let deploy = build_operator_deployment(image, target_ns);
         println!("---\n{}", serde_yaml::to_string(&deploy).unwrap());
-        return;
+        return Ok(());
     }
 
     let client = k8s::k8s_client().await;
 
     // 1. CRD (reuse existing)
-    let _ = crate::crd::crd_deploy(client.clone()).await;
+    crate::crd::crd_deploy(client.clone())
+        .await
+        .map_err(|source| DeployError::CrdDeploy { source })?;
 
     // 2. Namespace
     let ns_api: Api<Namespace> = Api::all(client.clone());
@@ -310,7 +357,11 @@ pub async fn handle_deploy(image: &str, target_ns: &str, dry_run: bool, wait: bo
             &Patch::Apply(&ns),
         )
         .await
-        .expect("Failed to create namespace");
+        .map_err(|source| DeployError::Api {
+            operation: "apply".to_string(),
+            resource: format!("Namespace {}", OPERATOR_NAMESPACE),
+            source,
+        })?;
 
     // 3. ServiceAccount
     let sa_api: Api<ServiceAccount> = Api::namespaced(client.clone(), OPERATOR_NAMESPACE);
@@ -322,7 +373,11 @@ pub async fn handle_deploy(image: &str, target_ns: &str, dry_run: bool, wait: bo
             &Patch::Apply(&sa),
         )
         .await
-        .expect("Failed to create ServiceAccount");
+        .map_err(|source| DeployError::Api {
+            operation: "apply".to_string(),
+            resource: format!("ServiceAccount {}/{}", OPERATOR_NAMESPACE, OPERATOR_NAME),
+            source,
+        })?;
 
     // 4. Role
     let role_api: Api<Role> = Api::namespaced(client.clone(), target_ns);
@@ -334,7 +389,11 @@ pub async fn handle_deploy(image: &str, target_ns: &str, dry_run: bool, wait: bo
             &Patch::Apply(&role),
         )
         .await
-        .expect("Failed to create Role");
+        .map_err(|source| DeployError::Api {
+            operation: "apply".to_string(),
+            resource: format!("Role {}/{}", target_ns, OPERATOR_NAME),
+            source,
+        })?;
 
     // 5. RoleBinding
     let rb_api: Api<RoleBinding> = Api::namespaced(client.clone(), target_ns);
@@ -346,7 +405,11 @@ pub async fn handle_deploy(image: &str, target_ns: &str, dry_run: bool, wait: bo
             &Patch::Apply(&rb),
         )
         .await
-        .expect("Failed to create RoleBinding");
+        .map_err(|source| DeployError::Api {
+            operation: "apply".to_string(),
+            resource: format!("RoleBinding {}/{}", target_ns, OPERATOR_NAME),
+            source,
+        })?;
 
     // 6. Deployment
     let deploy_api: Api<Deployment> = Api::namespaced(client.clone(), OPERATOR_NAMESPACE);
@@ -358,7 +421,11 @@ pub async fn handle_deploy(image: &str, target_ns: &str, dry_run: bool, wait: bo
             &Patch::Apply(&deploy),
         )
         .await
-        .expect("Failed to create Deployment");
+        .map_err(|source| DeployError::Api {
+            operation: "apply".to_string(),
+            resource: format!("Deployment {}/{}", OPERATOR_NAMESPACE, OPERATOR_NAME),
+            source,
+        })?;
 
     info!(
         "deployed pgopr v{}, watching namespace {}",
@@ -369,14 +436,26 @@ pub async fn handle_deploy(image: &str, target_ns: &str, dry_run: bool, wait: bo
     if wait {
         let wait_api: Api<Deployment> = Api::namespaced(client.clone(), OPERATOR_NAMESPACE);
         let condition = conditions::is_deployment_completed();
-        let _ = tokio::time::timeout(
-            std::time::Duration::from_secs(120),
+        let ready = tokio::time::timeout(
+            std::time::Duration::from_secs(OPERATOR_READY_TIMEOUT_SECS),
             await_condition(wait_api, OPERATOR_NAME, condition),
         )
         .await
-        .expect("Timed out waiting for deployment to become ready");
+        .map_err(|source| DeployError::WaitTimeout {
+            namespace: OPERATOR_NAMESPACE.to_string(),
+            name: OPERATOR_NAME.to_string(),
+            timeout_secs: OPERATOR_READY_TIMEOUT_SECS,
+            source,
+        })?;
+        ready.map_err(|source| DeployError::WaitReady {
+            namespace: OPERATOR_NAMESPACE.to_string(),
+            name: OPERATOR_NAME.to_string(),
+            source,
+        })?;
         info!("operator deployment is ready");
     }
+
+    Ok(())
 }
 
 /// Removes the operator control plane from the cluster.
@@ -385,11 +464,17 @@ pub async fn handle_deploy(image: &str, target_ns: &str, dry_run: bool, wait: bo
 /// deletes the `pgopr-system` Namespace. The CRD and all PgOpr resources
 /// (and their running databases) are left intact.
 ///
+/// A `404 Not Found` during deletion is treated as success (already gone).
+///
 /// # Arguments
 /// - `target_ns` - Namespace the operator was watching
 /// - `dry_run` - If true, print what would be deleted and exit
 /// - `delete_ns` - If true, also delete the pgopr-system namespace
-pub async fn handle_undeploy(target_ns: &str, dry_run: bool, delete_ns: bool) {
+pub async fn handle_undeploy(
+    target_ns: &str,
+    dry_run: bool,
+    delete_ns: bool,
+) -> Result<(), DeployError> {
     super::print_header();
     let client = k8s::k8s_client().await;
 
@@ -407,7 +492,7 @@ pub async fn handle_undeploy(target_ns: &str, dry_run: bool, delete_ns: bool) {
         if delete_ns {
             println!("Would delete Namespace {}", OPERATOR_NAMESPACE);
         }
-        return;
+        return Ok(());
     }
 
     // 1. Delete Deployment
@@ -418,7 +503,13 @@ pub async fn handle_undeploy(target_ns: &str, dry_run: bool, delete_ns: bool) {
     {
         Ok(_) => info!("deleted Deployment"),
         Err(kube::Error::Api(e)) if e.code == 404 => {} // already gone
-        Err(e) => panic!("Failed to delete Deployment: {:?}", e),
+        Err(source) => {
+            return Err(DeployError::Api {
+                operation: "delete".to_string(),
+                resource: format!("Deployment {}/{}", OPERATOR_NAMESPACE, OPERATOR_NAME),
+                source,
+            });
+        }
     }
 
     // 2. Delete RoleBinding
@@ -426,7 +517,13 @@ pub async fn handle_undeploy(target_ns: &str, dry_run: bool, delete_ns: bool) {
     match rb_api.delete(OPERATOR_NAME, &DeleteParams::default()).await {
         Ok(_) => info!("deleted RoleBinding"),
         Err(kube::Error::Api(e)) if e.code == 404 => {}
-        Err(e) => panic!("Failed to delete RoleBinding: {:?}", e),
+        Err(source) => {
+            return Err(DeployError::Api {
+                operation: "delete".to_string(),
+                resource: format!("RoleBinding {}/{}", target_ns, OPERATOR_NAME),
+                source,
+            });
+        }
     }
 
     // 3. Delete Role
@@ -437,7 +534,13 @@ pub async fn handle_undeploy(target_ns: &str, dry_run: bool, delete_ns: bool) {
     {
         Ok(_) => info!("deleted Role"),
         Err(kube::Error::Api(e)) if e.code == 404 => {}
-        Err(e) => panic!("Failed to delete Role: {:?}", e),
+        Err(source) => {
+            return Err(DeployError::Api {
+                operation: "delete".to_string(),
+                resource: format!("Role {}/{}", target_ns, OPERATOR_NAME),
+                source,
+            });
+        }
     }
 
     // 4. Delete ServiceAccount
@@ -445,7 +548,13 @@ pub async fn handle_undeploy(target_ns: &str, dry_run: bool, delete_ns: bool) {
     match sa_api.delete(OPERATOR_NAME, &DeleteParams::default()).await {
         Ok(_) => info!("deleted ServiceAccount"),
         Err(kube::Error::Api(e)) if e.code == 404 => {}
-        Err(e) => panic!("Failed to delete ServiceAccount: {:?}", e),
+        Err(source) => {
+            return Err(DeployError::Api {
+                operation: "delete".to_string(),
+                resource: format!("ServiceAccount {}/{}", OPERATOR_NAMESPACE, OPERATOR_NAME),
+                source,
+            });
+        }
     }
 
     // 5. Delete Namespace (optional)
@@ -457,11 +566,18 @@ pub async fn handle_undeploy(target_ns: &str, dry_run: bool, delete_ns: bool) {
         {
             Ok(_) => info!("deleted Namespace"),
             Err(kube::Error::Api(e)) if e.code == 404 => {}
-            Err(e) => panic!("Failed to delete Namespace: {:?}", e),
+            Err(source) => {
+                return Err(DeployError::Api {
+                    operation: "delete".to_string(),
+                    resource: format!("Namespace {}", OPERATOR_NAMESPACE),
+                    source,
+                });
+            }
         }
     }
 
     info!("undeploy complete");
+    Ok(())
 }
 
 #[cfg(test)]
@@ -521,5 +637,88 @@ mod tests {
         assert!(env.iter().any(|e| {
             e.name == "PGOPR_TARGET_NAMESPACE" && e.value.as_deref() == Some("my-ns")
         }));
+    }
+
+    fn test_api_status(code: u16) -> kube::Error {
+        let status = kube::core::Status {
+            code,
+            message: "forbidden".to_string(),
+            reason: "Forbidden".to_string(),
+            ..Default::default()
+        };
+        kube::Error::Api(status.boxed())
+    }
+
+    #[test]
+    fn test_deploy_error_api_display() {
+        let err = DeployError::Api {
+            operation: "apply".to_string(),
+            resource: "Deployment pgopr-system/pgopr-operator".to_string(),
+            source: test_api_status(403),
+        };
+        let msg = err.to_string();
+        assert!(
+            msg.contains("failed to apply Deployment pgopr-system/pgopr-operator"),
+            "unexpected message: {msg}"
+        );
+        assert!(msg.contains("forbidden"), "underlying error lost: {msg}");
+        assert!(std::error::Error::source(&err).is_some());
+    }
+
+    #[test]
+    fn test_deploy_error_crd_display() {
+        let err = DeployError::CrdDeploy {
+            source: test_api_status(403),
+        };
+        let msg = err.to_string();
+        assert!(
+            msg.contains("failed to deploy pgopr CRD"),
+            "unexpected message: {msg}"
+        );
+        assert!(msg.contains("forbidden"), "underlying error lost: {msg}");
+        assert!(std::error::Error::source(&err).is_some());
+    }
+
+    #[test]
+    fn test_deploy_error_wait_ready_display() {
+        let err = DeployError::WaitReady {
+            namespace: OPERATOR_NAMESPACE.to_string(),
+            name: OPERATOR_NAME.to_string(),
+            source: kube::runtime::wait::Error::ProbeFailed(
+                kube::runtime::watcher::Error::NoResourceVersion,
+            ),
+        };
+        let msg = err.to_string();
+        assert!(
+            msg.contains("pgopr-system/pgopr-operator"),
+            "missing resource context: {msg}"
+        );
+        assert!(std::error::Error::source(&err).is_some());
+    }
+
+    #[tokio::test]
+    async fn test_deploy_error_wait_timeout_display() {
+        let elapsed = tokio::time::timeout(
+            std::time::Duration::from_millis(1),
+            std::future::pending::<()>(),
+        )
+        .await
+        .expect_err("timeout should elapse");
+        let err = DeployError::WaitTimeout {
+            namespace: OPERATOR_NAMESPACE.to_string(),
+            name: OPERATOR_NAME.to_string(),
+            timeout_secs: OPERATOR_READY_TIMEOUT_SECS,
+            source: elapsed,
+        };
+        let msg = err.to_string();
+        assert!(
+            msg.contains("timed out after 120s"),
+            "missing deadline context: {msg}"
+        );
+        assert!(
+            msg.contains("pgopr-system/pgopr-operator"),
+            "missing resource context: {msg}"
+        );
+        assert!(std::error::Error::source(&err).is_some());
     }
 }
