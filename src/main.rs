@@ -268,6 +268,12 @@ fn generate_completions<G: Generator>(r#gen: G, cmd: &mut Command) {
     );
 }
 
+/// Report a `deploy`/`undeploy` failure to stderr and exit non-zero.
+fn exit_deploy_error(err: handlers::deploy::DeployError) -> ! {
+    eprintln!("error: {err}");
+    std::process::exit(1);
+}
+
 /// The main method
 #[tokio::main]
 async fn main() {
@@ -337,7 +343,10 @@ async fn main() {
                 .unwrap_or("default");
             let dry_run = sub_matches.get_flag("dry-run");
             let wait = sub_matches.get_flag("wait");
-            handlers::deploy::handle_deploy(image, target_ns, dry_run, wait).await;
+            if let Err(err) = handlers::deploy::handle_deploy(image, target_ns, dry_run, wait).await
+            {
+                exit_deploy_error(err);
+            }
         }
 
         Some(("undeploy", sub_matches)) => {
@@ -347,7 +356,10 @@ async fn main() {
                 .unwrap_or("default");
             let dry_run = sub_matches.get_flag("dry-run");
             let delete_ns = sub_matches.get_flag("delete-namespace");
-            handlers::deploy::handle_undeploy(target_ns, dry_run, delete_ns).await;
+            if let Err(err) = handlers::deploy::handle_undeploy(target_ns, dry_run, delete_ns).await
+            {
+                exit_deploy_error(err);
+            }
         }
 
         _ => {
