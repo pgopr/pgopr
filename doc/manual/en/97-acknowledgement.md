@@ -13,6 +13,7 @@ Nick Boyadjian <nboyadjian95@gmail.com>
 Bhawesh Panwar <panwarbhawesh1112@gmail.com>
 Sakshii-27 <sakshiaggarwal2706@gmail.com>
 Sarthak Aneja <sarthakaneja260@gmail.com>
+Youssef Ali <joe92228@gmail.com>
 ```
 
 ## Committers

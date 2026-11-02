@@ -37,3 +37,34 @@ pub fn build(name: &str, namespace: &str, port: i32) -> Service {
         ..Service::default()
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_build_sets_metadata_and_selector() {
+        let svc = build("postgresql", "default", 5432);
+
+        assert_eq!(svc.metadata.name.as_deref(), Some("postgresql"));
+        assert_eq!(svc.metadata.namespace.as_deref(), Some("default"));
+
+        let labels = svc.metadata.labels.unwrap();
+        assert_eq!(labels.get("app").unwrap(), "postgresql");
+
+        let spec = svc.spec.unwrap();
+        assert_eq!(spec.selector.unwrap(), labels);
+    }
+
+    #[test]
+    fn test_build_sets_port_and_type() {
+        let svc = build("postgresql", "default", 5432);
+        let spec = svc.spec.unwrap();
+
+        assert_eq!(spec.type_.as_deref(), Some("NodePort"));
+
+        let ports = spec.ports.unwrap();
+        assert_eq!(ports.len(), 1);
+        assert_eq!(ports[0].port, 5432);
+    }
+}

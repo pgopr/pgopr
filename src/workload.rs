@@ -59,3 +59,51 @@ pub fn map_resources(reqs: &ResourceRequirements) -> K8sResources {
 
     k8s_reqs
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::collections::BTreeMap;
+
+    #[test]
+    fn test_map_resources_keeps_absent_sections_absent() {
+        let reqs = ResourceRequirements {
+            limits: None,
+            requests: None,
+        };
+        let mapped = map_resources(&reqs);
+
+        assert!(mapped.limits.is_none());
+        assert!(mapped.requests.is_none());
+    }
+
+    #[test]
+    fn test_map_resources_maps_limits_and_requests() {
+        let reqs = ResourceRequirements {
+            limits: Some(BTreeMap::from([
+                ("cpu".to_string(), "1".to_string()),
+                ("memory".to_string(), "1Gi".to_string()),
+            ])),
+            requests: Some(BTreeMap::from([("cpu".to_string(), "500m".to_string())])),
+        };
+        let mapped = map_resources(&reqs);
+
+        let limits = mapped.limits.as_ref().unwrap();
+        assert_eq!(limits.get("cpu").unwrap().0, "1");
+        assert_eq!(limits.get("memory").unwrap().0, "1Gi");
+        let requests = mapped.requests.as_ref().unwrap();
+        assert_eq!(requests.get("cpu").unwrap().0, "500m");
+    }
+
+    #[test]
+    fn test_map_resources_preserves_empty_maps() {
+        let reqs = ResourceRequirements {
+            limits: Some(BTreeMap::new()),
+            requests: Some(BTreeMap::new()),
+        };
+        let mapped = map_resources(&reqs);
+
+        assert!(mapped.limits.as_ref().unwrap().is_empty());
+        assert!(mapped.requests.as_ref().unwrap().is_empty());
+    }
+}

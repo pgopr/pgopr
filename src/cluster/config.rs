@@ -102,3 +102,75 @@ fn fnv1a(mut hash: u64, bytes: &[u8]) -> u64 {
 fn escape_config_value(value: &str) -> String {
     value.replace('\\', "\\\\").replace('\'', "''")
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_validate_config_keys_accepts_non_empty_keys() {
+        let config = BTreeMap::from([
+            ("max_connections".to_string(), "100".to_string()),
+            ("shared_buffers".to_string(), "256MB".to_string()),
+        ]);
+
+        assert!(validate_config_keys(&config).is_ok());
+    }
+
+    #[test]
+    fn test_validate_config_keys_rejects_empty_key() {
+        let config = BTreeMap::from([(String::new(), "on".to_string())]);
+
+        let error = validate_config_keys(&config).expect_err("empty key should be rejected");
+
+        assert!(matches!(error, Error::UserInputError(_)));
+        assert!(error.to_string().contains("Invalid PostgreSQL config key"));
+    }
+
+    #[test]
+    fn test_config_hash_is_deterministic() {
+        let config = BTreeMap::from([
+            ("max_connections".to_string(), "100".to_string()),
+            ("shared_buffers".to_string(), "256MB".to_string()),
+        ]);
+
+        assert_eq!(config_hash(&config), config_hash(&config));
+        assert_eq!(config_hash(&config).len(), 8);
+    }
+
+    #[test]
+    fn test_config_hash_is_independent_of_insertion_order() {
+        let mut first = BTreeMap::new();
+        first.insert("max_connections".to_string(), "100".to_string());
+        first.insert("shared_buffers".to_string(), "256MB".to_string());
+
+        let mut second = BTreeMap::new();
+        second.insert("shared_buffers".to_string(), "256MB".to_string());
+        second.insert("max_connections".to_string(), "100".to_string());
+
+        assert_eq!(config_hash(&first), config_hash(&second));
+    }
+
+    #[test]
+    fn test_config_hash_changes_with_key_or_value() {
+        let base = BTreeMap::from([("max_connections".to_string(), "100".to_string())]);
+        let changed_value = BTreeMap::from([("max_connections".to_string(), "200".to_string())]);
+        let changed_key = BTreeMap::from([("max_worker_processes".to_string(), "100".to_string())]);
+
+        assert_ne!(config_hash(&base), config_hash(&changed_value));
+        assert_ne!(config_hash(&base), config_hash(&changed_key));
+    }
+
+    #[test]
+    fn test_config_hash_of_empty_config() {
+        assert_eq!(config_hash(&BTreeMap::new()), "cbf29ce4");
+    }
+
+    #[test]
+    fn test_escape_config_value_escapes_backslashes_and_quotes() {
+        assert_eq!(escape_config_value("plain"), "plain");
+        assert_eq!(escape_config_value(r"C:\data"), r"C:\\data");
+        assert_eq!(escape_config_value("it's"), "it''s");
+        assert_eq!(escape_config_value(r"it\'s"), r"it\\''s");
+    }
+}

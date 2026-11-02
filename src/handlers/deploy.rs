@@ -34,14 +34,14 @@ pub enum DeployError {
         operation: String,
         resource: String,
         #[source]
-        source: kube::Error,
+        source: Box<kube::Error>,
     },
 
     /// Deploying (create or patch) the pgopr CRD failed.
     #[error("failed to deploy pgopr CRD: {source}")]
     CrdDeploy {
         #[source]
-        source: kube::Error,
+        source: Box<kube::Error>,
     },
 
     #[error("failed waiting for operator Deployment {namespace}/{name} to become ready: {source}")]
@@ -49,7 +49,7 @@ pub enum DeployError {
         namespace: String,
         name: String,
         #[source]
-        source: kube::runtime::wait::Error,
+        source: Box<kube::runtime::wait::Error>,
     },
 
     #[error(
@@ -345,7 +345,9 @@ pub async fn handle_deploy(
     // 1. CRD (reuse existing)
     crate::crd::crd_deploy(client.clone())
         .await
-        .map_err(|source| DeployError::CrdDeploy { source })?;
+        .map_err(|source| DeployError::CrdDeploy {
+            source: Box::new(source),
+        })?;
 
     // 2. Namespace
     let ns_api: Api<Namespace> = Api::all(client.clone());
@@ -360,7 +362,7 @@ pub async fn handle_deploy(
         .map_err(|source| DeployError::Api {
             operation: "apply".to_string(),
             resource: format!("Namespace {}", OPERATOR_NAMESPACE),
-            source,
+            source: Box::new(source),
         })?;
 
     // 3. ServiceAccount
@@ -376,7 +378,7 @@ pub async fn handle_deploy(
         .map_err(|source| DeployError::Api {
             operation: "apply".to_string(),
             resource: format!("ServiceAccount {}/{}", OPERATOR_NAMESPACE, OPERATOR_NAME),
-            source,
+            source: Box::new(source),
         })?;
 
     // 4. Role
@@ -392,7 +394,7 @@ pub async fn handle_deploy(
         .map_err(|source| DeployError::Api {
             operation: "apply".to_string(),
             resource: format!("Role {}/{}", target_ns, OPERATOR_NAME),
-            source,
+            source: Box::new(source),
         })?;
 
     // 5. RoleBinding
@@ -408,7 +410,7 @@ pub async fn handle_deploy(
         .map_err(|source| DeployError::Api {
             operation: "apply".to_string(),
             resource: format!("RoleBinding {}/{}", target_ns, OPERATOR_NAME),
-            source,
+            source: Box::new(source),
         })?;
 
     // 6. Deployment
@@ -424,7 +426,7 @@ pub async fn handle_deploy(
         .map_err(|source| DeployError::Api {
             operation: "apply".to_string(),
             resource: format!("Deployment {}/{}", OPERATOR_NAMESPACE, OPERATOR_NAME),
-            source,
+            source: Box::new(source),
         })?;
 
     info!(
@@ -450,7 +452,7 @@ pub async fn handle_deploy(
         ready.map_err(|source| DeployError::WaitReady {
             namespace: OPERATOR_NAMESPACE.to_string(),
             name: OPERATOR_NAME.to_string(),
-            source,
+            source: Box::new(source),
         })?;
         info!("operator deployment is ready");
     }
@@ -507,7 +509,7 @@ pub async fn handle_undeploy(
             return Err(DeployError::Api {
                 operation: "delete".to_string(),
                 resource: format!("Deployment {}/{}", OPERATOR_NAMESPACE, OPERATOR_NAME),
-                source,
+                source: Box::new(source),
             });
         }
     }
@@ -521,7 +523,7 @@ pub async fn handle_undeploy(
             return Err(DeployError::Api {
                 operation: "delete".to_string(),
                 resource: format!("RoleBinding {}/{}", target_ns, OPERATOR_NAME),
-                source,
+                source: Box::new(source),
             });
         }
     }
@@ -538,7 +540,7 @@ pub async fn handle_undeploy(
             return Err(DeployError::Api {
                 operation: "delete".to_string(),
                 resource: format!("Role {}/{}", target_ns, OPERATOR_NAME),
-                source,
+                source: Box::new(source),
             });
         }
     }
@@ -552,7 +554,7 @@ pub async fn handle_undeploy(
             return Err(DeployError::Api {
                 operation: "delete".to_string(),
                 resource: format!("ServiceAccount {}/{}", OPERATOR_NAMESPACE, OPERATOR_NAME),
-                source,
+                source: Box::new(source),
             });
         }
     }
@@ -570,7 +572,7 @@ pub async fn handle_undeploy(
                 return Err(DeployError::Api {
                     operation: "delete".to_string(),
                     resource: format!("Namespace {}", OPERATOR_NAMESPACE),
-                    source,
+                    source: Box::new(source),
                 });
             }
         }
@@ -654,7 +656,7 @@ mod tests {
         let err = DeployError::Api {
             operation: "apply".to_string(),
             resource: "Deployment pgopr-system/pgopr-operator".to_string(),
-            source: test_api_status(403),
+            source: Box::new(test_api_status(403)),
         };
         let msg = err.to_string();
         assert!(
@@ -668,7 +670,7 @@ mod tests {
     #[test]
     fn test_deploy_error_crd_display() {
         let err = DeployError::CrdDeploy {
-            source: test_api_status(403),
+            source: Box::new(test_api_status(403)),
         };
         let msg = err.to_string();
         assert!(
@@ -684,9 +686,9 @@ mod tests {
         let err = DeployError::WaitReady {
             namespace: OPERATOR_NAMESPACE.to_string(),
             name: OPERATOR_NAME.to_string(),
-            source: kube::runtime::wait::Error::ProbeFailed(
+            source: Box::new(kube::runtime::wait::Error::ProbeFailed(
                 kube::runtime::watcher::Error::NoResourceVersion,
-            ),
+            )),
         };
         let msg = err.to_string();
         assert!(
