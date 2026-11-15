@@ -129,6 +129,7 @@ fn cli() -> Command {
                 .arg(
                     Arg::new("delete-namespace")
                         .long("delete-namespace")
+                        .visible_alias("delete-ns")
                         .action(clap::ArgAction::SetTrue)
                         .help("Also delete the pgopr-system namespace"),
                 ),
