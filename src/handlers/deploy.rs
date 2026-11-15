@@ -478,7 +478,6 @@ pub async fn handle_undeploy(
     delete_ns: bool,
 ) -> Result<(), DeployError> {
     super::print_header();
-    let client = k8s::k8s_client().await;
 
     if dry_run {
         println!(
@@ -496,6 +495,8 @@ pub async fn handle_undeploy(
         }
         return Ok(());
     }
+
+    let client = k8s::k8s_client().await;
 
     // 1. Delete Deployment
     let deploy_api: Api<Deployment> = Api::namespaced(client.clone(), OPERATOR_NAMESPACE);
@@ -722,5 +723,20 @@ mod tests {
             "missing resource context: {msg}"
         );
         assert!(std::error::Error::source(&err).is_some());
+    }
+
+    #[tokio::test]
+    async fn test_handle_deploy_dry_run() {
+        let res = handle_deploy("my-image:latest", "test-ns", true, false).await;
+        assert!(res.is_ok());
+    }
+
+    #[tokio::test]
+    async fn test_handle_undeploy_dry_run() {
+        let res = handle_undeploy("test-ns", true, false).await;
+        assert!(res.is_ok());
+
+        let res_delete_ns = handle_undeploy("test-ns", true, true).await;
+        assert!(res_delete_ns.is_ok());
     }
 }

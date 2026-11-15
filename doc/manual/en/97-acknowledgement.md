@@ -14,6 +14,7 @@ Bhawesh Panwar <panwarbhawesh1112@gmail.com>
 Sakshii-27 <sakshiaggarwal2706@gmail.com>
 Sarthak Aneja <sarthakaneja260@gmail.com>
 Youssef Ali <joe92228@gmail.com>
+Hardik Kaurani <hardikkaurani1@gmail.com>
 ```
 
 ## Committers
