@@ -117,6 +117,15 @@ fn test_deploy_dry_run_without_kubeconfig() {
     );
 
     let stdout = String::from_utf8_lossy(&output.stdout);
+    assert!(stdout.contains("kind: CustomResourceDefinition"));
+    assert!(stdout.contains("name: pgoprs.pgopr.io"));
     assert!(stdout.contains("kind: Deployment"));
     assert!(stdout.contains("kind: Namespace"));
+
+    let crd_pos = stdout.find("kind: CustomResourceDefinition").unwrap();
+    let ns_pos = stdout.find("kind: Namespace").unwrap();
+    assert!(
+        crd_pos < ns_pos,
+        "CRD manifest must precede Namespace manifest"
+    );
 }

@@ -14,7 +14,7 @@ use k8s_openapi::api::{
 use k8s_openapi::apimachinery::pkg::apis::meta::v1::LabelSelector;
 use kube::api::ObjectMeta;
 use kube::{
-    Api,
+    Api, CustomResourceExt,
     api::{DeleteParams, Patch, PatchParams},
     runtime::wait::{await_condition, conditions},
 };
@@ -327,6 +327,8 @@ pub async fn handle_deploy(
 
     if dry_run {
         // Serialize each resource to YAML and print
+        let crd = crate::crd::v1::pgopr::crd();
+        println!("---\n{}", serde_yaml::to_string(&crd).unwrap());
         let ns = build_operator_namespace();
         println!("---\n{}", serde_yaml::to_string(&ns).unwrap());
         let sa = build_operator_service_account();
