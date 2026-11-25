@@ -79,6 +79,9 @@ pub(super) async fn all(
         .delete::<Deployment>(&topology.pgexporter_name(), topology.namespace())
         .await?;
     manager
+        .delete::<Service>(&topology.pgexporter_name(), topology.namespace())
+        .await?;
+    manager
         .delete::<Secret>(&topology.pgexporter_secret_name(), topology.namespace())
         .await?;
     manager

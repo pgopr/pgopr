@@ -17,7 +17,7 @@ use crate::workload::{DeploymentConfig, PG18_PRIMARY_IMAGE, PG18_REPLICA_IMAGE};
 use crate::{Error, persistent, pgexporter, pgmoneta, primary, replica, services};
 use config::ConfigResult;
 use k8s_openapi::api::apps::v1::Deployment;
-use k8s_openapi::api::core::v1::{PersistentVolume, PersistentVolumeClaim, Secret};
+use k8s_openapi::api::core::v1::{PersistentVolume, PersistentVolumeClaim, Secret, Service};
 use kube::{Api, Client};
 use std::sync::Arc;
 use topology::{ClusterMember, ClusterTopology};
@@ -339,8 +339,12 @@ impl Cluster {
             .delete::<Deployment>(&topology.pgexporter_name(), topology.namespace())
             .await?;
         self.manager
+            .delete::<Service>(&topology.pgexporter_name(), topology.namespace())
+            .await?;
+        self.manager
             .delete::<Secret>(&topology.pgexporter_secret_name(), topology.namespace())
             .await?;
+        self.cleanup_pgexporter_monitoring(topology).await?;
 
         Ok(())
     }
@@ -368,5 +372,132 @@ impl Cluster {
             .delete::<Deployment>(&topology.pgexporter_mon_name(), topology.namespace())
             .await?;
         Ok(())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::crd::v1::PgOprSpec;
+    use kube::core::ObjectMeta;
+    use std::sync::Mutex;
+    use tokio::io::{AsyncReadExt, AsyncWriteExt};
+    use tokio::net::TcpListener;
+
+    async fn spawn_mock_k8s() -> (String, Arc<Mutex<Vec<String>>>) {
+        let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let addr = listener.local_addr().unwrap();
+        let deletes = Arc::new(Mutex::new(Vec::new()));
+        let recorded = Arc::clone(&deletes);
+
+        tokio::spawn(async move {
+            loop {
+                let Ok((mut stream, _)) = listener.accept().await else {
+                    break;
+                };
+                let recorded = Arc::clone(&recorded);
+                tokio::spawn(async move {
+                    let mut buf = [0u8; 4096];
+                    let Ok(n) = stream.read(&mut buf).await else {
+                        return;
+                    };
+                    if n == 0 {
+                        return;
+                    }
+                    let req = String::from_utf8_lossy(&buf[..n]);
+                    let first_line = req.lines().next().unwrap_or("");
+                    let mut parts = first_line.split_whitespace();
+                    let method = parts.next().unwrap_or("");
+                    let raw_path = parts.next().unwrap_or("");
+                    let path = raw_path.split('?').next().unwrap_or(raw_path);
+
+                    let body = if method == "DELETE" {
+                        recorded.lock().unwrap().push(path.to_string());
+                        r#"{"kind":"Status","apiVersion":"v1","metadata":{},"status":"Success"}"#
+                    } else if method == "GET" {
+                        r#"{"apiVersion":"v1","kind":"List","metadata":{"resourceVersion":"1"},"items":[]}"#
+                    } else {
+                        r#"{"kind":"Status","apiVersion":"v1","metadata":{},"status":"Success"}"#
+                    };
+
+                    let resp = format!(
+                        "HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{}",
+                        body.len(),
+                        body
+                    );
+                    let _ = stream.write_all(resp.as_bytes()).await;
+                });
+            }
+        });
+
+        (format!("http://{addr}"), deletes)
+    }
+
+    fn test_pgopr() -> Arc<pgopr> {
+        Arc::new(pgopr {
+            metadata: ObjectMeta {
+                name: Some("testcluster".to_string()),
+                namespace: Some("default".to_string()),
+                uid: Some("uid-1".to_string()),
+                ..Default::default()
+            },
+            spec: PgOprSpec {
+                version: None,
+                storage: 1,
+                replicas: None,
+                resources: None,
+                config: None,
+                pgmoneta: None,
+                pgexporter: None,
+            },
+            status: None,
+        })
+    }
+
+    #[tokio::test]
+    async fn cleanup_pgexporter_deletes_service_and_monitoring_deployment() {
+        let (url, deletes) = spawn_mock_k8s().await;
+        let client = Client::try_from(kube::Config::new(url.parse().unwrap())).unwrap();
+        let cluster = Cluster::new(client);
+        let resource = test_pgopr();
+        let topology = ClusterTopology::from_pgopr(&resource);
+
+        cluster.cleanup_pgexporter(&topology).await.unwrap();
+
+        let paths = deletes.lock().unwrap().clone();
+        assert!(paths.contains(
+            &"/apis/apps/v1/namespaces/default/deployments/testcluster-pgexporter".to_string()
+        ));
+        assert!(
+            paths.contains(
+                &"/api/v1/namespaces/default/services/testcluster-pgexporter".to_string()
+            )
+        );
+        assert!(paths.contains(
+            &"/api/v1/namespaces/default/secrets/testcluster-pgexporter-secret".to_string()
+        ));
+        assert!(paths.contains(
+            &"/apis/apps/v1/namespaces/default/deployments/testcluster-pgexporter-mon".to_string()
+        ));
+    }
+
+    #[tokio::test]
+    async fn cleanup_all_deletes_pgexporter_service() {
+        let (url, deletes) = spawn_mock_k8s().await;
+        let client = Client::try_from(kube::Config::new(url.parse().unwrap())).unwrap();
+        let cluster = Cluster::new(client);
+        let resource = test_pgopr();
+
+        cluster.cleanup_all(&resource).await.unwrap();
+
+        let paths = deletes.lock().unwrap().clone();
+        assert!(
+            paths.contains(
+                &"/api/v1/namespaces/default/services/testcluster-pgexporter".to_string()
+            )
+        );
+        assert!(paths.contains(
+            &"/apis/apps/v1/namespaces/default/deployments/testcluster-pgexporter-mon".to_string()
+        ));
     }
 }
