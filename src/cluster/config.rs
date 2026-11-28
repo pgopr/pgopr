@@ -67,9 +67,18 @@ pub async fn sync_config(
     })
 }
 
+fn is_valid_config_key(key: &str) -> bool {
+    !key.is_empty()
+        && key.split('.').all(|segment| {
+            let mut chars = segment.chars();
+            matches!(chars.next(), Some(c) if c.is_ascii_alphabetic() || c == '_')
+                && chars.all(|c| c.is_ascii_alphanumeric() || c == '_')
+        })
+}
+
 fn validate_config_keys(config: &BTreeMap<String, String>) -> Result<(), crate::Error> {
     for key in config.keys() {
-        if key.is_empty() {
+        if !is_valid_config_key(key) {
             return Err(Error::UserInputError(format!(
                 "Invalid PostgreSQL config key: {}",
                 key
@@ -100,7 +109,11 @@ fn fnv1a(mut hash: u64, bytes: &[u8]) -> u64 {
 }
 
 fn escape_config_value(value: &str) -> String {
-    value.replace('\\', "\\\\").replace('\'', "''")
+    value
+        .replace('\\', "\\\\")
+        .replace('\'', "''")
+        .replace('\r', "\\r")
+        .replace('\n', "\\n")
 }
 
 #[cfg(test)]
@@ -112,6 +125,7 @@ mod tests {
         let config = BTreeMap::from([
             ("max_connections".to_string(), "100".to_string()),
             ("shared_buffers".to_string(), "256MB".to_string()),
+            ("pg_stat_statements.max".to_string(), "1000".to_string()),
         ]);
 
         assert!(validate_config_keys(&config).is_ok());
@@ -125,6 +139,24 @@ mod tests {
 
         assert!(matches!(error, Error::UserInputError(_)));
         assert!(error.to_string().contains("Invalid PostgreSQL config key"));
+    }
+
+    #[test]
+    fn test_validate_config_keys_rejects_invalid_keys() {
+        for bad_key in [
+            "max connections",
+            "max_connections = 100\nshared_preload_libraries",
+            "foo#bar",
+            ".leading_dot",
+            "trailing_dot.",
+            "double..dot",
+            "1bad_prefix",
+        ] {
+            let config = BTreeMap::from([(bad_key.to_string(), "on".to_string())]);
+            let error = validate_config_keys(&config)
+                .expect_err(&format!("expected key {bad_key:?} to be rejected"));
+            assert!(matches!(error, Error::UserInputError(_)));
+        }
     }
 
     #[test]
@@ -172,5 +204,6 @@ mod tests {
         assert_eq!(escape_config_value(r"C:\data"), r"C:\\data");
         assert_eq!(escape_config_value("it's"), "it''s");
         assert_eq!(escape_config_value(r"it\'s"), r"it\\''s");
+        assert_eq!(escape_config_value("line1\r\nline2"), r"line1\r\nline2");
     }
 }
